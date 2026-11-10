@@ -1,0 +1,53 @@
+defaults:
+  - kerv_libero_goal
+  - _self_
+
+experiment:
+  exp_name: kerv_libero_goal_musa
+  envs:
+    KERV_DEVICE_BACKEND: musa
+    MUSA_VISIBLE_DEVICES: ${oc.env:MUSA_VISIBLE_DEVICES,0}
+
+inference:
+  runtime:
+    run_id_note: kerv-musa-bf16-native
+    runtime_stats_path: ${oc.env:KERV_OUTPUT_ROOT}/runtime_stats.jsonl
+    action_log_path: ${oc.env:KERV_OUTPUT_ROOT}/actions.jsonl
+    fail_on_error: true
+    flag_gems:
+      enabled: false
+    embodied_ops:
+      enabled: true
+      backend: native
+      record: true
+    linear_fusion:
+      enabled: false
+    rope_fusion:
+      enabled: false
+    tree_builder:
+      enabled: false
+      static_runtime: false
+      node_buckets: ""
+      operatorized: false
+      fused_control_transfer: false
+      compile_verifier: false
+      compile_mode: default
+      persistent_runtime: false
+      resident_kv_cache: false
+      fixed_workspace_layout: false
+      prewarm_graph_buckets: false
+      persistent_input_buffers: false
+      static_tree_attention: "off"
+    cuda_warmup_seconds: 0.0
+    timing_backend: cpu
+    system_optimization:
+      enabled: false
+      prompt_cuda_graph: "off"
+      draft_cuda_graph: "off"
+      commit_draft_cuda_graph: "off"
+      commit_draft_stream_overlap: "off"
+      pinned_image_buffer: false
+      async_image_transfer: false
+      task_level_graph_warmup: false
+      allocator_backend: native
+      episode_device_warmup: "off"

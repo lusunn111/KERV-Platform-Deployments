@@ -1,0 +1,33 @@
+{
+  "source_markdown": "docs/acceptance/MOORE_TECHNICAL_REPORT_20261028.md",
+  "source_sha256": "69e668618a192bd047774f0a5c343b2b2f345ba5de77d2b123d49d5c7690bcae",
+  "pdf": "docs/acceptance/MOORE_TECHNICAL_REPORT_20261028.pdf",
+  "pdf_sha256": "7ca93021091a5e7737eeb6b4faa6a22e2bd72e937421a37d0116c880c88bce93",
+  "exported_at_utc": "2026-10-28T06:43:34.258480+00:00",
+  "renderer": "WeasyPrint 68.0; markdown-it-py 4.0.0",
+  "font": "Noto Sans SC (embedded subset)",
+  "pages": 14,
+  "bytes": 259354,
+  "validation": {
+    "status": "PASS",
+    "required_metrics_present": true,
+    "local_links_preserved": 82,
+    "outline_entries": 32,
+    "page_bounds_check": "PASS",
+    "source_unchanged": true,
+    "visual_review": {
+      "status": "PASS",
+      "pages_checked": [
+        1,
+        4,
+        5,
+        6,
+        9
+      ],
+      "scope": "Chinese text, cover, table continuation, architecture diagram, candidate-results table"
+    },
+    "font_embedding": "PASS: embedded TrueType subsets for regular and bold Chinese text",
+    "link_scope": "82 total PDF links, including TOC/internal navigation and local evidence file URIs"
+  },
+  "notes": "PDF is a typeset copy of existing Markdown with cover/TOC and rendered architecture diagram; no model runs and no changes to sealed experiment evidence."
+}

@@ -1,0 +1,524 @@
+{
+  "schema": "kerv_document_revision_v1",
+  "created_at_utc": "2026-10-28T04:19:13.810882+00:00",
+  "scope": "Post-seal technical documentation revision only; no model runs, no writes inside the experiment campaign",
+  "campaign": "outputs/task_aware_quantization/20261028T022212Z",
+  "sealed_manifest_sha256": "4e3407572f52f0c2d9d46af10fc2793f0a46cb760e16aeda9e13691f06450020",
+  "previous_full_integrity_check": {
+    "path": "outputs/task_aware_quantization/20261028T022212Z.integrity_check.json",
+    "status": "PASS",
+    "files_checked": 988,
+    "note": "Historical full verification at seal time; this revision rechecks referenced evidence and raw records listed below"
+  },
+  "validation": {
+    "status": "PASS",
+    "raw_full_runs_recomputed": 14,
+    "lossy_families": 7,
+    "lossy_episodes": 11,
+    "same_runtime_pair_checks": 2,
+    "operator_families_recomputed": 4,
+    "final_regression_count_from_existing_evidence": 37,
+    "main_report_local_links_checked": 42,
+    "sealed_evidence_files_rehashed": 115,
+    "sealed_checksum_manifest_unchanged": true
+  },
+  "main_pair_metrics_recomputed": {
+    "allocated_peak_saving_bytes": 2107057664,
+    "reserved_peak_saving_bytes": 2092957696,
+    "static_weight_saving_bytes": 2122448562,
+    "model_latency_increase_percent": 19.365931717956265,
+    "pipeline_latency_increase_percent": 18.538525803061788,
+    "closed_loop_wall_increase_percent": 9.573587263594918,
+    "allocated_peak_reduction_percent": 12.48307457530413,
+    "reserved_peak_reduction_percent": 12.15146718616827
+  },
+  "documents": {
+    "docs/acceptance/MOORE_TECHNICAL_REPORT_20261028.md": {
+      "bytes": 35857,
+      "sha256": "69e668618a192bd047774f0a5c343b2b2f345ba5de77d2b123d49d5c7690bcae"
+    },
+    "docs/acceptance/MOORE_TASK_AWARE_QUANTIZATION_20261028.md": {
+      "bytes": 11481,
+      "sha256": "a8da9d5aefe9f7f669b826f804cc2ba5406d90d893be09b4465b9f6378ac3c12"
+    },
+    "docs/acceptance/README.md": {
+      "bytes": 17105,
+      "sha256": "a26572239c0c68fcd3d3febe7c4643f30335a7679220d6d8edad8418612800e0"
+    },
+    "README.md": {
+      "bytes": 76954,
+      "sha256": "2fac81d2e3f147d3627c54db7e18b6149f951aaf9f078956ebf354b6f55cc14f"
+    },
+    "src/README.md": {
+      "bytes": 15911,
+      "sha256": "3fc0e86c03dd115b2515a5675ed8f7abb4756d6123a5298b6038cac9dacb6e22"
+    },
+    "src/docs/MUSA_TASK_AWARE_QUANTIZATION.md": {
+      "bytes": 8402,
+      "sha256": "97c15387dbdb8a3cbd5359c08b5c8b29fcd244a9577e0f4edb3945bdf7032f05"
+    }
+  },
+  "sealed_evidence_checked": [
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/fast_lossless_operator_benchmark/results.json",
+      "sha256": "25c3e134e37938e2e5f9ad7436e068c6898822ecfbbb42b0db7dd81ce1b175b5"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/hash_operator_benchmark/results.json",
+      "sha256": "8e08ff4b25c292134061ff9731875357540f434cb9c70371b7e856c2ebb66bd5"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/inline_operator_benchmark/results.json",
+      "sha256": "4dadb1c7cb14ff1cb5bffa61ea4425e0cad90d7d29f130228f909f77b6c370cb"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/inline_operator_benchmark_unrolled/results.json",
+      "sha256": "aa7c900b85aaa9cdd03bc44a5e72535fd1c1b158db06303880f41caccd3677ee"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/inventory/cases.csv",
+      "sha256": "4b9bac1e60d9f6703ef96a78ee961cff9ac73ff344181f3476ac95d5c3287611"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/inventory/cases_addendum_01.csv",
+      "sha256": "2885dfac855cdae38908c2fa2dab29e38c7ee49a7be4030540f1e171abce8941"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/inventory/cases_addendum_02.csv",
+      "sha256": "1c997ccf0637e194b66d795ebaed6f3bb7eaa16b43614c095e5ed3af278f8410"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/inventory/cases_addendum_03.csv",
+      "sha256": "5a0173ddd21fd011de2dc119566e5ca35b299652509396ebcc05b44c8b7867f7"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/inventory/cases_addendum_04.csv",
+      "sha256": "dc9e0e5267d4f0b5e56228d477fe42e6cadbf5361b9873ea9f1fd012add18a5d"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/inventory/cases_addendum_05.csv",
+      "sha256": "173710e1311398b4596472dc35f4743075f6823a1c7185a9128ea3bd63e8a9c4"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/inventory/cases_addendum_06.csv",
+      "sha256": "8496a705dd3a70ceae790be4caf6840b29b78b317b7ad41db1909afb2724db3f"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/inventory/cases_addendum_07.csv",
+      "sha256": "e73e477e68d8ce5ec34978bdfb17097cfbc91692ef1d41960aac8e0722cfb07e"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/inventory/cases_addendum_08.csv",
+      "sha256": "eb911c3cc71ecc257f1b608a3d9c1f7976711dcb0a06b9e35ec066a8981e7b81"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/inventory/cases_addendum_09.csv",
+      "sha256": "ae150eaf53cfae01ed9c306fc16332e879c82284e724b190d8f9f37ca1cc4457"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/inventory/cases_addendum_10.csv",
+      "sha256": "6d351ce1f36f846658385def368d3b8fd9b18e24be3c5aa44f7d901969877f59"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/inventory/cases_addendum_11.csv",
+      "sha256": "dbdf8c779f9b01a9ab9a82615b8ba41806c83b28cc4700cfd46b985475ae57b5"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/inventory/cases_addendum_12.csv",
+      "sha256": "094a912efc8d65f024e6dfa94736e6f42a8593bc0ef4e3a8183084a81230fe61"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/inventory/cases_addendum_13.csv",
+      "sha256": "f08524da7bc299c810c0e87365bfcb43bd0b34edc36e0c4900ce79d3e3dfb858"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/inventory/cases_addendum_14.csv",
+      "sha256": "ae93edf495106fe9f1a762d8a0a3e4c20dbb08b5c3449ebb1bfdc83bc7e0dfe5"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/inventory/cases_addendum_15.csv",
+      "sha256": "36b6a07066e75b28c1eec852c88df3005e0fad1c7778912ddbf8c2be16d649ba"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/inventory/execution_status.json",
+      "sha256": "149048d8ceeabbb1c4f3b0a2295278815734e87954bf3d51b3810a83ce4495e7"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/inventory/selection.json",
+      "sha256": "d5a9999b81de6a561ac731b2d087d5d0aa3ab4e72f430b63bf3bce82ba038e43"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/inventory/source_final.tar.gz",
+      "sha256": "4d9319e9be85b99650a70414c423bed0ed1f312c75d406a1f5264b3496876fba"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/inventory/weight_manifest.json",
+      "sha256": "9c8ecacd85154eb79725ff49adc223d1d5b84eb73402b2b777f41fc068968f32"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/operations/final_targeted_regression/command.json",
+      "sha256": "7f569e48b03d40700b0986de1c2857e267095b8ed25c26537b5ebda08d2021d2"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/operations/final_targeted_regression/stdout_stderr.log",
+      "sha256": "63e1a528923aaf632b28ca5b45f690d475b035d50d468f1606a75a68d7ece091"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/recommended_exact_mlp/deployment_policy.json",
+      "sha256": "c36da97d0e13c2d69c3926014f2962831ef7b5271982de22849866187b8bc475"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/reports/dependencies_checked.json",
+      "sha256": "a8b46bdfa080dc38382bdc688f35ca6fa49921b55d57e605fd2b6d2234865967"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/reports/exact_packed_control.json",
+      "sha256": "57cbddf794b054a1cffecad782d2758963ba29133ba901a222c4c5405872fe0d"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/reports/local_results.json",
+      "sha256": "9090695dc451a9fb917a70619ad981f6b890f893c34e9f87dc5bfb103842beea"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/reports/operator_summary.json",
+      "sha256": "ae7f562f3b357e14f831a1b3d85d6d4dd0f2008780e74e6567d30e22097dc3f7"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/reports/recommended_exact_recheck.json",
+      "sha256": "b3bfc8e7363cea9ffdf4fff7e1680de8818014f9222745296b6708379d8de0d5"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/runs/comparison_old_exact_mlp_task0_state0_s7/collection.json",
+      "sha256": "9e739149c8c060b4a5304049a9317710657a23196f217cf6a0a44113432deb90"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/runs/comparison_old_exact_mlp_task0_state0_s7/episodes.jsonl",
+      "sha256": "c2cd12e84621669ea36fe72524bcc382595cff7fd3789612085a69910759872c"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/runs/comparison_old_exact_mlp_task0_state0_s7/memory.jsonl",
+      "sha256": "c1ec56ea377d327c5efdea0785def8d3edab3df5d0885999dde116927ee46249"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/runs/comparison_old_exact_mlp_task0_state0_s7/precision_storage.jsonl",
+      "sha256": "edbfdac9da7916bcccf00217318313999507b75bdaf86074daf82a1fb76074c0"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/runs/comparison_old_exact_mlp_task0_state0_s7/run.json",
+      "sha256": "f1109bfc5b871e5c1d34cf398e0e5cfddd81c2cf8b82ec1742790d9f482a3af8"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/runs/comparison_old_exact_mlp_task0_state0_s7/steps.jsonl",
+      "sha256": "b2ac3cdc713b0cf79fd1287ad83acfca73fe11c9352681b273e83d14778f2ebd"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/runs/control_exact_packed8_task0_state0_s7/collection.json",
+      "sha256": "79d3aca124470d894437353aefd8b2dc2419a839b0740c354b654632086e27f6"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/runs/control_exact_packed8_task0_state0_s7/episodes.jsonl",
+      "sha256": "99f1031904224f34433bd8c3d29544057318f0d43223450d1abd245f65eb7536"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/runs/control_exact_packed8_task0_state0_s7/memory.jsonl",
+      "sha256": "3336ce578e4655cfea550da27cb55b714b6aa6098fdc828bc57521a3085f6e66"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/runs/control_exact_packed8_task0_state0_s7/precision_storage.jsonl",
+      "sha256": "558ab8d27e31a8f15742d5acd1bef442c3ff0c4732356cc028ad980f81ec3a1f"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/runs/control_exact_packed8_task0_state0_s7/run.json",
+      "sha256": "13aaf5c8bfbec12f263c78fa2f0b52dec723349342da2c03c50db6680316610b"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/runs/control_exact_packed8_task0_state0_s7/steps.jsonl",
+      "sha256": "3af3b1eee291a2606d81702e37bca53ccd18d960988dc5ae7797e6e7c6c065b0"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/runs/control_fresh_bf16_task0_state0_s7/collection.json",
+      "sha256": "ac6b8a9407a16d2e885f8789016e89d5348025f956b0b06cbc1e64134a242bcb"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/runs/control_fresh_bf16_task0_state0_s7/episodes.jsonl",
+      "sha256": "db0249652940a29f5746922a5f4d89b175f1edee86794502c8ba1a6f23a1abd9"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/runs/control_fresh_bf16_task0_state0_s7/memory.jsonl",
+      "sha256": "f3a9b6848efdc0b923f8868d48611a5c43fe104c3d513d7518fd6ab6f588cf3b"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/runs/control_fresh_bf16_task0_state0_s7/precision_reference.jsonl",
+      "sha256": "b8d1a7daf1edbc837f6f9b82549ed01ce8c93af8c112b44a1aa65e21a774ec4a"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/runs/control_fresh_bf16_task0_state0_s7/run.json",
+      "sha256": "1aab8348c914fea5ee6187a361ba68de46f04cf788e232ab122207388aefda6d"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/runs/control_fresh_bf16_task0_state0_s7/steps.jsonl",
+      "sha256": "f3e200535e2ddfe91286c2924d7ab870f01d1f017a8c2824a313dd0e2b4439c9"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/runs/pilot_int8_task0_state0_s7/collection.json",
+      "sha256": "e32ec25c425dd3a25c7597e9ac13017b0af1ace73cafbe296ffa3bda98126ef5"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/runs/pilot_int8_task0_state0_s7/episodes.jsonl",
+      "sha256": "9dac2388d1b41ee70f47aa6c4e23e6a165202b6de68d7cc0f3943b8b1240d25d"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/runs/pilot_int8_task0_state0_s7/memory.jsonl",
+      "sha256": "61511714994044669b28be650a9add4f5c8d5211edc0cd59fcb33aee29367a28"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/runs/pilot_int8_task0_state0_s7/run.json",
+      "sha256": "a84dfbc3819caad845da47cf04431239d7308c9d06760e73098e9ef54c36cfe2"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/runs/pilot_int8_task0_state0_s7/steps.jsonl",
+      "sha256": "5d9cf058f9855cf6a77697f25a363fbc843e1308bd22cf0bc99d1d6f7d05015e"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/runs/pilot_int8_task1_state10_s7/collection.json",
+      "sha256": "47c94c70165b2e0c74c3cbc3d1d27e93c8fb9521725043473fc8690cb7bd945b"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/runs/pilot_int8_task1_state10_s7/episodes.jsonl",
+      "sha256": "793f4d7ec4c8609b7b1553ce4a345ff30b0681c69a259e9a92579f00109e6f63"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/runs/pilot_int8_task1_state10_s7/memory.jsonl",
+      "sha256": "eded35ae09eee8fce5619a69c37f169914493787292ce5a0d09c194fbe351aac"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/runs/pilot_int8_task1_state10_s7/run.json",
+      "sha256": "42aca9bcb9371aca94cdf59c131b037ad91fa635e9d5a6c9ad4c0bea896b5921"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/runs/pilot_int8_task1_state10_s7/steps.jsonl",
+      "sha256": "188fc8ff597fc06a8ef313b64227a462405316d41e776dc4e2f5821022bc3aae"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/runs/pilot_nearzero_task0_state0_s7/collection.json",
+      "sha256": "d114d659506c6dc0eace1805a30ad7a94cb032686395a089a85ad59f3afa707f"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/runs/pilot_nearzero_task0_state0_s7/episodes.jsonl",
+      "sha256": "2170ce5db2f0c2df552ccd134583325ad7a6461d309b523790c8637e943307bd"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/runs/pilot_nearzero_task0_state0_s7/memory.jsonl",
+      "sha256": "ecf9f3fa7310462295729c24b87ea553ff8d868256a17bfdf5e85fd810f3bc0f"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/runs/pilot_nearzero_task0_state0_s7/precision_storage.jsonl",
+      "sha256": "c85b83dbb0fa4de0df1249680f2f0962b40ca2710732b429588ab93d256f970b"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/runs/pilot_nearzero_task0_state0_s7/run.json",
+      "sha256": "1e81a4c54be9c3460bb003c6bf9a7af484b488c218865400ca15778c0e10b1b4"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/runs/pilot_nearzero_task0_state0_s7/steps.jsonl",
+      "sha256": "0485e4e0c45dc2e0f2c4472ca082e30ba9c52a3f7027e3bc4959b0d671ec504d"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/runs/pilot_nearzero_task1_state10_s7/collection.json",
+      "sha256": "7041a93fec9991dd461031fb27b9d075ce8c12d57d291fb507311a936ab5eba6"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/runs/pilot_nearzero_task1_state10_s7/episodes.jsonl",
+      "sha256": "39d4903c08296bc00f3cbc056b0d00e9a283d6d8db90c3d3b929c58aa97a107c"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/runs/pilot_nearzero_task1_state10_s7/memory.jsonl",
+      "sha256": "c859799fea8876035cfb47f216f3ac67fff0d6c4f964ed0e5d74942939a8b9d5"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/runs/pilot_nearzero_task1_state10_s7/precision_storage.jsonl",
+      "sha256": "16d5b51ed06ae941f12ad9a28d6cedb0bfcd19ac0e1ab8940fc060b45fc405a9"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/runs/pilot_nearzero_task1_state10_s7/run.json",
+      "sha256": "1115143c96f9fc7cb08c5b71874bfae2d1a9ee13821376af91d4036827f6b65c"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/runs/pilot_nearzero_task1_state10_s7/steps.jsonl",
+      "sha256": "e110ea9a95d55f7a3384a1e1e7e1b6a6cb934989b274f5a084661f6d6398734c"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/runs/pilot_tree_gptq_up_hybrid_task0_state0_s7/collection.json",
+      "sha256": "3b2d7231111ac7820febee2a7415b3c4b390f107bab694b31962b61b680585b3"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/runs/pilot_tree_gptq_up_hybrid_task0_state0_s7/episodes.jsonl",
+      "sha256": "7b1b784bf88010e9eb3f212ba68e3502e907607cc101ea14c8d3739567583ce3"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/runs/pilot_tree_gptq_up_hybrid_task0_state0_s7/memory.jsonl",
+      "sha256": "f7731072482d813eceac99b6e089e57f88a7351d8576869a7046479fd64e35b6"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/runs/pilot_tree_gptq_up_hybrid_task0_state0_s7/precision_storage.jsonl",
+      "sha256": "8a189634de5c66194046188c1dfef9b3bec082bd315fc5229996db38e90fa0fe"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/runs/pilot_tree_gptq_up_hybrid_task0_state0_s7/run.json",
+      "sha256": "9cd03eed40054706e89d7a14dd807544893a918066d85ac5b212b963e6f49770"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/runs/pilot_tree_gptq_up_hybrid_task0_state0_s7/steps.jsonl",
+      "sha256": "fc3cc93b74b7c2496fe205914e13a17019c39f5444e2b93f74e04faf911aaebd"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/runs/pilot_tree_gptq_w10_task0_state0_s7/collection.json",
+      "sha256": "cdc270891c5abc48945047f2935ff041fa6cdbf6cfb8d04def9ea18fed196283"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/runs/pilot_tree_gptq_w10_task0_state0_s7/episodes.jsonl",
+      "sha256": "5bbb4655ba2f6b7b6f31fc4ef27d73ed1ea0b0801b0e0562e3713c34d9aa4b31"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/runs/pilot_tree_gptq_w10_task0_state0_s7/memory.jsonl",
+      "sha256": "d076a7098f3a19012ffb3f785daca42429b6cef0e317d6cefd4044d02ad2ea0d"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/runs/pilot_tree_gptq_w10_task0_state0_s7/precision_storage.jsonl",
+      "sha256": "d20661b021bbc7eac363d34a00e72864b008a8ad0dab7a0538d3f5f0ce88ac25"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/runs/pilot_tree_gptq_w10_task0_state0_s7/run.json",
+      "sha256": "b7c57055aac1cc0359779e6d8b3f510f76ad8e141ee616881448446893c3dd03"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/runs/pilot_tree_gptq_w10_task0_state0_s7/steps.jsonl",
+      "sha256": "ce250799a93e22d20c04941d51baecd473f3ca7c6a6924d4529ffa267dc4d864"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/runs/pilot_w10_pow2_task0_state0_s7/collection.json",
+      "sha256": "bc13310ee5aac3f7152616f5869922867422608d9fbe213ead7d3732536eefea"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/runs/pilot_w10_pow2_task0_state0_s7/episodes.jsonl",
+      "sha256": "1260cd39a4333e481072f6c9dcf9b5eb2f4870ab6205a852a0506f6fbb94c37a"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/runs/pilot_w10_pow2_task0_state0_s7/memory.jsonl",
+      "sha256": "e6e88144f3b670f234a0789ccc26df37da791c5c4486b0919066e034408fc9a1"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/runs/pilot_w10_pow2_task0_state0_s7/precision_storage.jsonl",
+      "sha256": "ca7d16e1884d91dc4b8ec09ff931f6bfb2b97b20da5b6935321d79a328add9c8"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/runs/pilot_w10_pow2_task0_state0_s7/run.json",
+      "sha256": "fb18923fa60a04566bc5ed9e6ca1efa2cb15595a9213d0dd499d619016a268c6"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/runs/pilot_w10_pow2_task0_state0_s7/steps.jsonl",
+      "sha256": "6291c5785116899f8d745d7edbe85e4618a7b58a884e3a9f21285e639c4066f8"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/runs/pilot_w10_pow2_task1_state10_s7/collection.json",
+      "sha256": "3017b4a0d7437a17340b0621fb80eca9a09c562f6706309a4874c162a3c0af4f"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/runs/pilot_w10_pow2_task1_state10_s7/episodes.jsonl",
+      "sha256": "aaeb784b87ee89d6251da1b45b7d147fc8bbabf57e2c22a52db427183e6acbd7"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/runs/pilot_w10_pow2_task1_state10_s7/memory.jsonl",
+      "sha256": "442ca6a580444bb44d8087a24f745b2490f55904e986c065787954f0dd6619c9"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/runs/pilot_w10_pow2_task1_state10_s7/precision_storage.jsonl",
+      "sha256": "d76d620ab013c157a7dd54c19bed4ab02d3be432688c6ba0d86653d9f91e0efa"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/runs/pilot_w10_pow2_task1_state10_s7/run.json",
+      "sha256": "4415efc79de2f6f81092d6583f4e18c193820675d07891dfa61eb8a26acc560a"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/runs/pilot_w10_pow2_task1_state10_s7/steps.jsonl",
+      "sha256": "a3dacfde16e86e19c03969721f67216b5a07faf7264e1f11daa12066c804ff8a"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/runs/pilot_w10_task0_state0_s7/collection.json",
+      "sha256": "e9a8e4ca35f738e6037915b2c212df169a221ebb2cc73abd27e4679005bae470"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/runs/pilot_w10_task0_state0_s7/episodes.jsonl",
+      "sha256": "4c96c853473e5fbb654c03c3033b6d4515bdba69924d702ae02a6c3dad3fb722"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/runs/pilot_w10_task0_state0_s7/memory.jsonl",
+      "sha256": "afa0f526614e1a67ce354b45ded4ca7dab70cc6486120191833dc76c0f6815d9"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/runs/pilot_w10_task0_state0_s7/precision_storage.jsonl",
+      "sha256": "d9782bbe126ad71956ce161243eb21cd6d9cfc12b8e01de26ad5f615d61c8753"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/runs/pilot_w10_task0_state0_s7/run.json",
+      "sha256": "094b7c7832a13ca0b464879f9bf705a8f6eb07a4fd4f7dda8aed7dedaaef24c7"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/runs/pilot_w10_task0_state0_s7/steps.jsonl",
+      "sha256": "37b281522df646a524c7b2db38b43e2a1f1647e00288acb70829d769aaeb2287"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/runs/pilot_w12_up8_task0_state0_s7/collection.json",
+      "sha256": "e3b31bc569141bbeb3cb3ae306ef05673bce0877e159996f1d20a8b33e92963f"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/runs/pilot_w12_up8_task0_state0_s7/episodes.jsonl",
+      "sha256": "37447f3be3836b463949c87b5ef127201e066360647da6813aab8aba4045884d"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/runs/pilot_w12_up8_task0_state0_s7/memory.jsonl",
+      "sha256": "4d6306ffb0b4c6cb17c80dc02aadee27e1f17dc0ebf9055c5f7eca1098d12722"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/runs/pilot_w12_up8_task0_state0_s7/precision_storage.jsonl",
+      "sha256": "272c42fa3ce2556debce3447aa042b48027c487c906e3a59ad702de47589bb4b"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/runs/pilot_w12_up8_task0_state0_s7/run.json",
+      "sha256": "8b581f8d143bf07c1c3bebd49a3ae58cf656d8145e37631585cec05c3276e87d"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/runs/pilot_w12_up8_task0_state0_s7/steps.jsonl",
+      "sha256": "275a3d95074bc2e6f06ea4b7228df01c8a016b28c468aa338130eaf8569eb65f"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/runs/pilot_w12_up8_task1_state10_s7/collection.json",
+      "sha256": "e17ab6f7e9374eb87cd4f4e12791d45b0f093ed6d344d7a0b92b23738b4eed85"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/runs/pilot_w12_up8_task1_state10_s7/episodes.jsonl",
+      "sha256": "6e27d7520e9e668d932240e951e60fe663b1bc6ee496bd908202cd05b873ec34"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/runs/pilot_w12_up8_task1_state10_s7/memory.jsonl",
+      "sha256": "4672a301eba40fdcebd17e4006a8e5b060a874381e8c800883838608b4df56de"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/runs/pilot_w12_up8_task1_state10_s7/precision_storage.jsonl",
+      "sha256": "c4441166b7d8c32e668bf4010880ccf5305609698c73b05ec8f3354a315614e3"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/runs/pilot_w12_up8_task1_state10_s7/run.json",
+      "sha256": "eed49cc76b1fcee841e7b1f76ef1111d69e4236c1050333a47d9895f15bccff2"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/runs/pilot_w12_up8_task1_state10_s7/steps.jsonl",
+      "sha256": "fbbf704aff40365f7b6e7bf7c955655eb58b139702e0ee86713022e1493b99d0"
+    },
+    {
+      "path": "outputs/task_aware_quantization/20261028T022212Z/tree_gptq_pow2_w10/sampling.json",
+      "sha256": "6a6257c2cbd5cdc3bb5faf6fb688cb52b2e4b7e09108af32005aad988687b3e8"
+    }
+  ],
+  "reproduction_note": "Read-only summarize_run/check functions and JSON audits; no report generator main() or GPU code invoked. The older exact-packed control uses comparisons/equal_frames field names; these were matched to the current checker explicitly. Document paths are relative to /root/KERV. This manifest excludes itself."
+}

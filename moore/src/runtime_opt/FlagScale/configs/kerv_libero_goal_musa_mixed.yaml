@@ -1,0 +1,12 @@
+defaults:
+  - kerv_libero_goal_musa_w8a16
+  - _self_
+
+experiment:
+  exp_name: kerv_libero_goal_musa_mixed
+
+inference:
+  runtime:
+    run_id_note: kerv-musa-calibrated-mixed-bf16-int8
+    w8a16:
+      policy_path: ${oc.env:KERV_MIXED_POLICY,/workspace/src/runtime_opt/FlagScale/policies/kerv_musa_mixed.json}

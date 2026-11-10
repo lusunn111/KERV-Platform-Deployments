@@ -1,0 +1,62 @@
+# Reuse FlagScale's in-process KERV adapter with the validated NPU options.
+defaults:
+  - kerv
+  - _self_
+
+kerv:
+  work_dir: ${oc.env:KERV_SOURCE_ROOT,./KERV}
+  python_paths:
+    - ${oc.env:KERV_SOURCE_ROOT,./KERV}/openvla
+    - ${oc.env:KERV_SOURCE_ROOT,./KERV}/third_party/LIBERO
+  dependencies:
+    - torch
+    - torch_npu
+    - tensorflow
+    - transformers
+    - draccus
+    - libero
+    - KERVRuntimeOptimization
+  env:
+    KERV_DEVICE_TYPE: npu
+    ASCEND_RT_VISIBLE_DEVICES: ${oc.env:ASCEND_RT_VISIBLE_DEVICES,4}
+    CUDA_VISIBLE_DEVICES: ""
+    PYOPENGL_PLATFORM: osmesa
+    MUJOCO_GL: osmesa
+    HF_HUB_OFFLINE: "1"
+    OMP_NUM_THREADS: "16"
+    TF_NUM_INTRAOP_THREADS: "1"
+    TF_NUM_INTEROP_THREADS: "1"
+  arguments:
+    run_id_note: flagscale-ascend
+    kalman_interval: 4
+    use_flagos_embodied_ops: true
+    flagos_embodied_ops_include: kerv_rms_norm,kerv_silu_mul,kerv_add_rms_norm,kerv_verify_accept_control,kerv_static_tree_pack,kerv_static_tree_attention,kerv_action_projection_select,kerv_kv_commit,kerv_tree_embed_pack,kerv_rope_kv_store,kerv_action_verify_accept,kerv_draft_action_topk,kerv_kv_accept_commit,kerv_vision_add_layer_norm,kerv_vision_bias_gelu
+    flagos_embodied_ops_backend: native
+    flagos_embodied_ops_record: true
+    flagos_embodied_ops_log_path: ${experiment.exp_dir}/embodied_ops_hits.jsonl
+    flagos_embodied_ops_manifest_path: ${experiment.exp_dir}/embodied_ops.json
+    use_flagos_linear_fusion: false
+    use_flagos_rope_fusion: false
+    use_flagos_action_head: false
+    flagos_action_head_record: false
+    flagos_action_head_log_path: ${experiment.exp_dir}/action_head_hits.jsonl
+    flagos_action_head_manifest_path: ${experiment.exp_dir}/action_head.json
+    flagos_action_vocab_size: 256
+    flagos_npu_graphs: true
+    flagos_npu_attention_backend: native
+    flagos_fused_control_transfer: true
+    flagos_compile_verifier: false
+    flagos_persistent_runtime: false
+    flagos_resident_kv_cache: false
+    flagos_fixed_workspace_layout: false
+    flagos_prewarm_graph_buckets: false
+    flagos_persistent_input_buffers: false
+    # Keep literal string quotes through draccus' YAML argument decoder.
+    flagos_static_tree_attention: '"off"'
+    flagos_timing_backend: cpu
+    flagos_system_optimization: false
+    flagos_allocator_backend: native
+    flagos_prompt_cuda_graph: '"off"'
+    flagos_draft_cuda_graph: '"off"'
+    flagos_shared_graph_pool: false
+    runtime_stats_path: ${experiment.exp_dir}/runtime.jsonl

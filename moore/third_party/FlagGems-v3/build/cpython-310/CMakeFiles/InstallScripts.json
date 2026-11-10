@@ -1,0 +1,7 @@
+{
+	"InstallScripts" : 
+	[
+		"/workspace/third_party/FlagGems-v3/build/cpython-310/cmake_install.cmake"
+	],
+	"Parallel" : false
+}

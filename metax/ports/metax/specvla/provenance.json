@@ -1,0 +1,19 @@
+{
+  "upstream_commit": "56ef2985e25c7903d2759254efb754327fb975f7",
+  "source": "previously retrieved outputs/SpecVLA-reference; no network",
+  "files": {
+    "openvla/prismatic/extern/hf/configuration_prismatic.py": "264dcacd0aafab6a358eb76c7b8e2a1357708e5cabae8b2204178876a244a9a1",
+    "openvla/prismatic/extern/hf/modeling_prismatic.py": "ea13f33d1b169a89fde5c219ccd1bf0fa99d9973aeafb22b5f6b7671469a2adb",
+    "openvla/prismatic/extern/hf/modeling_speculation.py": "3920a00345d1ac501b9e01d0ae4f7a2bb9a0b5a6d37c36c8c15c25f7969abd44",
+    "openvla/prismatic/extern/hf/kv_cache.py": "1bc67c8b4c355d846c98f410dcc3ade8e3711f24517037787cca62f7594ba288",
+    "openvla/prismatic/extern/hf/utils.py": "f17924d14b4bcb1ac35c709f6c59ad9d838df9bed7bbaeb503d6e86d0d33e072",
+    "openvla/specdecoding/model/cnets.py": "1f07ff69aecf8169f786b06dda8c9621ff6f3e38c7e4bbb3ec9c217a4d46eba4",
+    "openvla/specdecoding/model/configs.py": "14ae62877cd9ab12c9076fc70fe940714b9ca980865b00ba974de340df2d1ac5",
+    "openvla/specdecoding/model/utils_c.py": "fa7bee5ea870200756bd48bb27c1dbfb2e8f1d42f4e9c832d6b5d1681ca97f58",
+    "openvla/specdecoding/model/choices.py": "5ab95137f63b61f756057927b2af427ffa0bc351384d99e334a9da853fcbfa7e",
+    "LICENSE": "81d184b2ddb248e4453ea6e061f277a37e496d039b3b4299e055d6b277051881",
+    "LICENSE.txt": "81d184b2ddb248e4453ea6e061f277a37e496d039b3b4299e055d6b277051881",
+    "openvla/local_transformers/__init__.py": "8da98d59e7ab2e5fc479f86770a57d658cc6355a2715427a8fdfb6201055293f",
+    "openvla/local_transformers/generation_utils.py": "f09e08fdfec530615cde2836f54993b7129cde2765529f522b5727c694d529ae"
+  }
+}

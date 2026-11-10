@@ -1,0 +1,373 @@
+import os
+import shutil
+import json
+import ahocorasick
+from os.path import join, dirname, abspath
+from typing import Dict, List
+from tools.cuda_porting.match_rewrite import init_ac_automaton, transform_file
+
+
+class PortingFile:
+    r"""Class used to manage porting files."""
+
+    def __init__(
+        self,
+        dir_name: str,
+        recursive: bool,
+        need_filter_cpp: bool,
+        exclude_sub_dirs: List[str] = None,
+    ) -> None:
+        r"""Initializes class.
+
+        Args:
+            dir_name (str): folder name of porting files.
+            recursive (bool): whether to port recursively in the folder or not.
+            need_filter_cpp (bool): whether to filter out cpp files or not.
+        """
+        self.dir_name = dir_name
+        self.recursive = recursive
+        self.need_filter_cpp = need_filter_cpp
+
+        self.exclude_sub_dirs = []
+        if exclude_sub_dirs:
+            assert isinstance(exclude_sub_dirs, list)
+            for sub_dir in exclude_sub_dirs:
+                self.exclude_sub_dirs.append(
+                    os.path.join(dir_name.rstrip("/"), sub_dir.strip("/"))
+                )
+
+
+r"""All folders needed for cuda-porting
+"""
+PORT_FILES = [
+    PortingFile("aten/src/ATen/native/cuda", True, False),
+    PortingFile("aten/src/ATen/native/nested", True, False),
+    PortingFile("aten/src/ATen/native/quantized", True, True),
+    PortingFile("aten/src/ATen/native/sparse", True, False),
+    PortingFile("aten/src/ATen/native/transformers", True, True),
+    PortingFile("aten/src/ATen/cuda", True, False),
+    PortingFile("aten/src/THC", True, True),
+    PortingFile("c10/cuda", True, False),
+    PortingFile(
+        "include",
+        True,
+        True,
+        [
+            "ATen/ops",
+            "torch/csrc/inductor",
+            "torch/csrc/stable",
+        ],
+    ),
+    PortingFile("include/torch/csrc/inductor", True, True),
+    PortingFile("include/torch/csrc/stable", True, True),
+    PortingFile("c10/core/impl", True, True),
+    PortingFile("aten/src/ATen/cuda", True, True),
+    PortingFile("torch/csrc/cuda", True, False),
+]
+
+
+def get_automaton(input_map: Dict[str, str]) -> ahocorasick.Automaton:
+    r"""Get an instance of Automaton for matching and replacing.
+
+    Args:
+        input_map (Dict[str, str]): description of source string and destination string in Automaton.
+
+    Returns:
+        Automaton: an instance of Automaton with input_map.
+    """
+
+    automaton = ahocorasick.Automaton()
+    for cuda, musa in input_map.items():
+        automaton.add_word(cuda, (len(cuda), musa))
+    automaton.make_automaton()
+    return automaton
+
+
+def load_extra_replace_map(mapping_dir: str, dir_name: str) -> Dict[str, str]:
+    r"""Load directory-specific regex replacement rules.
+
+    The rule file path mirrors ``dir_name`` under ``extra_replace``. For example,
+    rules for ``include/torch/csrc/inductor`` live at
+    ``extra_replace/include/torch/csrc/inductor.json``.
+    """
+    extra_replace_path = join(
+        mapping_dir, "extra_replace", f"{dir_name.strip('/')}.json"
+    )
+    if not os.path.exists(extra_replace_path):
+        return {}
+
+    with open(extra_replace_path, encoding="utf-8") as handle:
+        return json.load(handle)
+
+
+def patch_memory_access(dst_file: str) -> None:
+    r"""Collapse CUDA/ROCm vector load/store into MUSA C++ load/store."""
+    if os.path.normpath(dst_file).split(os.sep)[-4:] != [
+        "ATen",
+        "native",
+        "musa",
+        "MemoryAccess.muh",
+    ]:
+        return
+
+    with open(dst_file, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    # USE_ROCM is OFF for the generated MUSA tree, but the non-ROCm branch in
+    # upstream MemoryAccess.cuh is CUDA PTX inline asm. Collapse the whole
+    # conditional to the portable C++ load/store path instead.
+    content = content.replace(
+        """  if constexpr (Alignment == 16) {
+#if defined(USE_ROCM)
+    vec.u128 = *reinterpret_cast<const uint4*>(addr);
+  } else if constexpr (Alignment == 8) {
+    vec.u64 = *reinterpret_cast<const uint64_t*>(addr);
+  } else if constexpr (Alignment == 4) {
+    vec.u32 = *reinterpret_cast<const uint32_t*>(addr);
+#else
+    asm("ld.global.v4.u32 {%0,%1,%2,%3}, [%4];"
+        : "=r"(vec.u32[0]), "=r"(vec.u32[1]), "=r"(vec.u32[2]), "=r"(vec.u32[3])
+        : "l"(addr)
+        : "memory");
+  } else if constexpr (Alignment == 8) {
+    asm("ld.global.v2.u32 {%0,%1}, [%2];"
+        : "=r"(vec.u32[0]), "=r"(vec.u32[1])
+        : "l"(addr)
+        : "memory");
+  } else if constexpr (Alignment == 4) {
+    asm("ld.global.u32 %0, [%1];" : "=r"(vec.u32) : "l"(addr) : "memory");
+#endif
+  } else {
+""",
+        """  if constexpr (Alignment == 16) {
+    vec.u128 = *reinterpret_cast<const uint4*>(addr);
+  } else if constexpr (Alignment == 8) {
+    vec.u64 = *reinterpret_cast<const uint64_t*>(addr);
+  } else if constexpr (Alignment == 4) {
+    vec.u32 = *reinterpret_cast<const uint32_t*>(addr);
+  } else {
+""",
+    )
+
+    content = content.replace(
+        """  if constexpr (Alignment == 16) {
+#if defined(USE_ROCM)
+    reinterpret_cast<uint64_t*>(addr)[0] = vec.u64[0];
+    reinterpret_cast<uint64_t*>(addr)[1] = vec.u64[1];
+  } else if constexpr (Alignment == 8) {
+    *reinterpret_cast<uint64_t*>(addr) = vec.u64;
+  } else if constexpr (Alignment == 4) {
+    *reinterpret_cast<uint32_t*>(addr) = vec.u32;
+#else
+    asm("st.global.v4.u32 [%0], {%1,%2,%3,%4};"
+        :
+        : "l"(addr),
+          "r"(vec.u32[0]),
+          "r"(vec.u32[1]),
+          "r"(vec.u32[2]),
+          "r"(vec.u32[3])
+        : "memory");
+  } else if constexpr (Alignment == 8) {
+    asm("st.global.v2.u32 [%0], {%1,%2};"
+        :
+        : "l"(addr), "r"(vec.u32[0]), "r"(vec.u32[1])
+        : "memory");
+  } else if constexpr (Alignment == 4) {
+    asm("st.global.u32 [%0], %1;" : : "l"(addr), "r"(vec.u32) : "memory");
+#endif
+  } else {
+""",
+        """  if constexpr (Alignment == 16) {
+    reinterpret_cast<uint64_t*>(addr)[0] = vec.u64[0];
+    reinterpret_cast<uint64_t*>(addr)[1] = vec.u64[1];
+  } else if constexpr (Alignment == 8) {
+    *reinterpret_cast<uint64_t*>(addr) = vec.u64;
+  } else if constexpr (Alignment == 4) {
+    *reinterpret_cast<uint32_t*>(addr) = vec.u32;
+  } else {
+""",
+    )
+
+    with open(dst_file, "w", encoding="utf-8") as f:
+        f.write(content)
+
+
+def port_cuda(
+    pytorch_src_root: str, pytorch_install_root: str, generated_dir: str
+) -> None:
+    r"""Port files for cuda compatibility.
+
+    Args:
+        pytorch_src_root (str): path of PyTorch source code.
+        pytorch_install_root (str): path of PyTorch installed.
+        generated_dir (str): path of which porting files will be generated.
+
+    Returns: None.
+    """
+    # Prepare main cuda-porting map
+    current_dir = dirname(abspath(__file__))
+    mapping_dir = join(dirname(dirname(current_dir)), "torch_musa/utils/mapping")
+    map_files = [
+        join(mapping_dir, "include.json"),
+        join(mapping_dir, "general.json"),
+        join(mapping_dir, "extra.json"),
+    ]
+    main_automaton = init_ac_automaton(map_files)
+
+    # Prepare replace map which is not handled in cuda-porting tools.
+    # The following map will be used for regular expressions. The key is the pattern,
+    # and the value is the target string.
+    extra_replace_map = {
+        "OptionalCUDAGuard": "OptionalMUSAGuard",
+        "getCUDADeviceAllocator": "getMUSADeviceAllocator",
+        "cudaOccupancy": "musaOccupancy",
+        "empty_cuda": "empty_musa",
+        "cuda_cmake_macros": "musa_cmake_macros",
+        "c10_cuda_check_implementation": "c10_musa_check_implementation",
+        r"\.cuh>": ".muh>",
+        r"cuda_dispatch\.h": "musa_dispatch.h",
+        r"\.is_cuda[(][)]": ".is_privateuseone()",
+        "((?<!case )(?<!case c10::))DeviceType::CUDA": "DeviceType::PrivateUse1",
+        "philox_cuda_state": "philox_musa_state",
+        # TODO(caizhi): enable cub library porting
+        "at::musa::cub::mask_exclusive_sum[(]": "",
+        "mask_data, maskPrefixSum_data, mask_numel[)];": "",
+        "set_cuda_dispatch_ptr[(]value[)]": "set_privateuse1_dispatch_ptr(value)",
+        "namespace cuda {": "namespace musa {",
+        "C10_CUDA_KERNEL_LAUNCH_CHECK": "C10_MUSA_KERNEL_LAUNCH_CHECK",
+        "C10_CUDA_IGNORE_ERROR": "C10_MUSA_IGNORE_ERROR",
+        "C10_CUDA_ERROR_HANDLED": "C10_MUSA_ERROR_HANDLED",
+        "C10_CUDA_CHECK[(]": "C10_MUSA_CHECK(",
+        "C10_CUDA_CHECK_WARN[(]": "TORCH_MUSA_WARN(",
+        'CUDA_KERNEL_ASSERT(index >= -sizes[i] && index < sizes[i] && "index out of bounds");': "",
+        "C10_CUDA_API ": "C10_MUSA_API ",
+        "C10_CUDA_IMPORT": "C10_MUSA_IMPORT",
+        "C10_CUDA_EXPORT": "C10_MUSA_EXPORT",
+        "C10_CUDA_BUILD_MAIN_LIB": "C10_MUSA_BUILD_MAUN_LIB",
+        "C10_CUDA_BUILD_SHARED_LIBS": "C10_MUSA_BUILD_SHARED_LIBS",
+        "OptionalCUDAStreamGuard": "OptionalMUSAStreamGuard",
+        r"<ATen/CUDAFunctions\.h>": "<ATen/MUSAFunctions.h>",
+        r"<c10/musa/CUDADeviceAssertionHost\.h>": '"torch_musa/csrc/core/MUSADeviceAssertionHost.h"',
+        r"<c10/musa/CUDAFunctions\.h>": '"torch_musa/csrc/core/MUSAFunctions.h"',
+        r"<c10/musa/MUSAStream\.h>": '"torch_musa/csrc/core/MUSAStream.h"',
+        r"<c10/musa/MUSAGuard\.h>": '"torch_musa/csrc/core/MUSAGuard.h"',
+        r"<c10/musa/impl/CUDAGuardImpl\.h>": '"torch_musa/csrc/core/GuardImpl.h"',
+        r"<c10/musa/CUDAException\.h>": '"torch_musa/csrc/core/MUSAException.h"',
+        r"<c10/musa/CUDAMiscFunctions\.h>": '"torch_musa/csrc/core/MUSAMiscFunctions.h"',
+        r"<c10/musa/CUDACachingAllocator\.h>": '"torch_musa/csrc/core/MUSACachingAllocator.h"',
+        r"<c10/musa/MUSACachingAllocator\.h>": '"torch_musa/csrc/core/MUSACachingAllocator.h"',
+        r"<c10/musa/CUDAGraphsC10Utils\.h>": '"torch_musa/csrc/core/MUSAGraphsC10Utils.h"',
+        r"<ATen/musa/CUDADevice\.h>": '"torch_musa/csrc/core/Device.h"',
+        r"<ATen/musa/CUDABlas\.h>": '"torch_musa/csrc/aten/musa/MUSABlas.h"',
+        r"<ATen/musa/CUDAContext\.h>": '"torch_musa/csrc/aten/musa/MUSAContext.h"',
+        r"<ATen/musa/CUDAContextLight\.h>": '"torch_musa/csrc/aten/musa/MUSAContextLight.h"',
+        r"<ATen/musa/Exceptions\.h>": '"torch_musa/csrc/aten/musa/Exceptions.h"',
+        r"<ATen/musa/PinnedMemoryAllocator\.h>": '"torch_musa/csrc/core/PinnedMemoryAllocator.h"',
+        r"<ATen/musa/CachingHostAllocator\.h>": '"torch_musa/csrc/core/CachingHostAllocator.h"',
+        r"<ATen/musa/MUSAGeneratorImpl\.h>": '"torch_musa/csrc/aten/musa/MUSAGeneratorImpl.h"',
+        r"<ATen/musa/detail/PhiloxCudaStateRaw\.muh>": '"torch_musa/csrc/aten/musa/PhiloxMusaStateRaw.muh"',
+        r"<ATen/musa/PhiloxMusaState\.h>": "<ATen/musa/PhiloxCudaState.h>",
+        r"<ATen/musa/detail/UnpackRaw\.muh>": '"torch_musa/csrc/aten/musa/UnpackRaw.muh"',
+        r"<ATen/musa/CUDAGraphsUtils\.muh>": '"torch_musa/csrc/aten/musa/MUSAGraphsUtils.muh"',
+        r"Device\(kCUDA, current_device\(\)\)": "Device(kMUSA, current_device())",
+        r"__syncthreads\(\)": "__SYNCTHREADS",  # check file before applying this
+        "impl::CUDAGuardImpl": "impl::MUSAGuardImpl",
+        r"<ATen/musa/CUDAGraphsUtils.muh>": "torch_musa/csrc/aten/musa/MUSAGraphsUtils.muh",
+        r"SparseCUDATensorMath.muh": "SparseMUSATensorMath.muh",
+        r"SparseCUDABlas.h": "SparseMUSABlas.h",
+        r"SparseCUDABlas.cpp": "SparseMUSABlas.cpp",
+        r"Device\(kCUDA\)": "Device(kPrivateUse1)",
+        r"device\(at::kCUDA\)": "device(at::kPrivateUse1)",
+        r"CUTLASS": "MUTLASS",
+        r"cutlass::": "mutlass::",
+        r"NO_CUDNN_DESTROY_HANDLE": "NO_MUDNN_DESTROY_HANDLE",
+    }
+
+    # unregister CUDA kernel bindings that managed by stub mechiasm,
+    # this is necessary when we implement kernels on our own rather than porting, and
+    # bind the kernel into the same stub with CPU/CUDA. otherwise, we can't guarantee
+    # the stub is binded to the correct kernel(the initialization order of static variables
+    # can not be guaranteed).
+    unregister_cuda_dispatch_stub_map = {
+        r"REGISTER_DISPATCH\(index_stub, &index_kernel\);": "",
+        r"REGISTER_DISPATCH\(index_put_stub, &index_put_kernel\);": "",
+    }
+    extra_replace_map.update(unregister_cuda_dispatch_stub_map)
+
+    # Not all files' content should be replaced.
+    # This only works on file level, substitution is consistent within the file
+    excluded_files_mapping = {
+        r"__syncthreads\(\)": (
+            "LossCTC.cu",
+            "RreluWithNoise.cu",
+            "DistributionTemplates.h",
+            "Dropout.cu",
+        )
+    }
+    # 1. Copy and cuda-port files
+    for port_file in PORT_FILES:
+        dir_extra_replace_map = load_extra_replace_map(mapping_dir, port_file.dir_name)
+        file_extra_replace_map = dict(extra_replace_map)
+        file_extra_replace_map.update(dir_extra_replace_map)
+        src_root = (
+            pytorch_install_root
+            if "include" in port_file.dir_name
+            else pytorch_src_root
+        )
+        for cur_dir, sub_dir, files in os.walk(
+            os.path.join(src_root, port_file.dir_name)
+        ):
+            relative_path = cur_dir.replace(src_root.rstrip("/") + "/", "")
+            sub_dir[:] = [
+                d
+                for d in sub_dir
+                if (os.path.join(relative_path, d) not in port_file.exclude_sub_dirs)
+            ]
+            destination_folder = os.path.join(
+                generated_dir, relative_path.replace("cuda", "musa")
+            )
+
+            if not port_file.recursive:
+                if relative_path != port_file.dir_name:
+                    continue
+
+            if not os.path.isdir(destination_folder):
+                os.makedirs(destination_folder)
+
+            for f in files:
+                file_path = os.path.join(cur_dir, f)
+                if port_file.need_filter_cpp:
+                    if (
+                        ".h" in file_path
+                        or ".cu" in file_path
+                        or "FakeQuantPerTensorAffine.cpp" in file_path
+                        or "FakeQuantPerChannelAffine.cpp" in file_path
+                        or "TensorAdvancedIndexing.cpp" in file_path
+                    ):
+                        shutil.copy(file_path, destination_folder)
+                    else:
+                        continue
+                else:
+                    shutil.copy(file_path, destination_folder)
+
+                dst_file = os.path.join(destination_folder, f)
+                dst_file = transform_file(
+                    dst_file,
+                    main_automaton,
+                    file_extra_replace_map,
+                    excluded_files_mapping,
+                )
+                patch_memory_access(dst_file)
+
+    # 2. Copy several special files about macros files
+    special_copy_files = {
+        "cmake_macros.h": "c10/macros",
+        "musa_cmake_macros.h": "c10/musa/impl",
+        "MUSAConfig.h": "ATen/musa",
+        "jit_macros.h": "ATen",
+    }
+    for key, value in special_copy_files.items():
+        shutil.copy(
+            os.path.join(current_dir, key),
+            os.path.join(generated_dir, "include", value),
+        )

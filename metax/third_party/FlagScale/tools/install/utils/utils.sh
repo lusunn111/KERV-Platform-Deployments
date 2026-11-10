@@ -1,0 +1,101 @@
+#!/bin/bash
+
+# Copyright 2026 FlagOS Contributors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# =============================================================================
+# Common Utilities
+# =============================================================================
+#
+# Core utility functions: logging, error handling, command execution.
+# =============================================================================
+
+# =============================================================================
+# Error Handling
+# =============================================================================
+
+CURRENT_STEP=""
+
+# Print error message and exit
+die() {
+    local msg="$1"
+    local code="${2:-1}"
+
+    echo "" >&2
+    echo "══════════════════════════════════════════════════════════════════" >&2
+    echo "  ✗ INSTALLATION FAILED" >&2
+    echo "══════════════════════════════════════════════════════════════════" >&2
+    [ -n "$CURRENT_STEP" ] && echo "  Step: $CURRENT_STEP" >&2
+    echo "  Error: $msg" >&2
+    echo "  Exit code: $code" >&2
+    echo "══════════════════════════════════════════════════════════════════" >&2
+    exit "$code"
+}
+
+set_step() {
+    CURRENT_STEP="$1"
+    log_step "$1"
+}
+
+# =============================================================================
+# Command Execution
+# =============================================================================
+
+# Run command or print in debug mode
+# Usage: run_cmd -d <true|false> [-m "message"] command args...
+run_cmd() {
+    local msg="" debug="false"
+    while [[ "$1" == -* ]]; do
+        case "$1" in
+            -m) msg="$2"; shift 2 ;;
+            -d) debug="$2"; shift 2 ;;
+            *) break ;;
+        esac
+    done
+
+    [ -n "$msg" ] && log_info "$msg"
+
+    if [ "$debug" = true ]; then
+        echo "    [dry-run] $*" >&2
+        return 0
+    fi
+    "$@"
+}
+
+# =============================================================================
+# Logging
+# =============================================================================
+
+log_info()    { echo "  · $*" >&2; }
+log_warn()    { echo "  ! $*" >&2; }
+log_error()   { echo "  ✗ $*" >&2; }
+log_success() { echo "  ✓ $*" >&2; }
+log_step()    { echo "→ $*" >&2; }
+
+print_header() {
+    echo "" >&2
+    echo "══════════════════════════════════════════════════════════════════" >&2
+    echo "  $*" >&2
+    echo "══════════════════════════════════════════════════════════════════" >&2
+}
+
+# =============================================================================
+# Helpers
+# =============================================================================
+
+get_project_root() {
+    local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    cd "$script_dir/../../.."
+    pwd
+}

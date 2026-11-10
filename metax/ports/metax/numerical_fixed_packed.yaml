@@ -1,0 +1,9 @@
+# Merge AFTER numerical_fixed: identical repaired arithmetic + existing lossless codec.
+experiment:
+  exp_name: kerv_metax_numerical_fixed_packed
+  envs:
+    KERV_METAX_V2: rms_native_mean,rope,vision_graph
+    KERV_METAX_QUANT: bf16_lossless_selective
+inference:
+  runtime:
+    run_id_note: metax-numerical-native-moments-lossless-mlp94

@@ -1,0 +1,128 @@
+"""Generate the local operator report from sealed-per-run raw evidence."""
+import argparse
+from pathlib import Path
+import re
+from acceptance.common import dump,load,rows,distribution
+
+
+def main():
+    p=argparse.ArgumentParser(description=__doc__)
+    p.add_argument('--campaign',type=Path,required=True)
+    p.add_argument('--root',type=Path,default=Path('/root/KERV'))
+    a=p.parse_args();c=a.campaign;r=a.root
+    replay=load(c/'replays/same_policy_rows_v1/evidence_checks.json')
+    assert replay['status']=='PASS'
+    micro=load(c/'microbench_rows_v4/results.json')
+    smoke={}
+    for label in ['reference','rows']:
+        folder=c/'runs'/('smoke_'+label+'_s7');run=load(folder/'run.json');steps=rows(folder/'steps.jsonl')
+        assert run['status']=='PASS' and len(steps)==8
+        memory=rows(folder/'memory.jsonl')
+        smoke[label]={'execution_status':run['status'],'steps':len(steps),
+            'peak_allocated_bytes':max(x['peak_allocated_bytes'] or 0 for x in memory),
+            'peak_reserved_bytes':max(x['peak_reserved_bytes'] or 0 for x in memory),
+            'action_tokens':[x['action_tokens'] for x in steps],
+            'observation_hashes':[x['observation_hash'] for x in steps]}
+    smoke['same_action_tokens']=sum(x==y for x,y in zip(smoke['reference']['action_tokens'],smoke['rows']['action_tokens']))
+    smoke['same_observations']=sum(x==y for x,y in zip(smoke['reference']['observation_hashes'],smoke['rows']['observation_hashes']))
+    kernel=rows(c/'runs/smoke_rows_s7/calibrated_kernel.jsonl')
+    assert all(x['bit_exact'] for x in kernel[0]['modules'])
+    assert all(x['forward_calls']>0 for x in kernel[-1]['modules'])
+    regression=(c/'operations/regression_suite/stdout_stderr.log').read_text()
+    assert load(c/'operations/regression_suite/command.json')['exit_code']==0
+    count=int(re.search(r'Ran (\d+) tests',regression)[1]);skip=re.search(r'OK \(skipped=(\d+)\)',regression)
+    skipped=int(skip[1]) if skip else 0
+    policy=load(r/load(c/'inventory/payload_manifest.json')['policy'])
+    results={'campaign':c.name,'same_policy_replay':replay,'cold_smoke':smoke,
+        'tests':{'total':count,'passed':count-skipped,'skipped':skipped},
+        'original_policy_static_saving_bytes':policy['estimated_static_saving_bytes'],
+        'new_static_saving_bytes':policy['estimated_static_saving_bytes']-replay['lookup_storage_bytes'],
+        'model_quality_status':'NOT_PASSED (unchanged pre-existing policy); full suite not run',
+        'operator_action_parity':replay['exact_actions']==replay['total_frames']}
+    shadow=load(c/'diagnostics/shadow_same_input/shadow_operator_checks.json')
+    rotation=load(c/'weight_rotation75/results.json')
+    results['same_input_diagnostic']={k:v for k,v in shadow.items() if k not in ('calls','topk_checks')}
+    results['same_input_diagnostic']['calls']=len(shadow['calls'])
+    results['same_input_diagnostic']['topk_calls']=len(shadow['topk_checks'])
+    results['weight_rotation75']=rotation
+    results['whole_model_performance_status']='NOT_PASSED: no stable benefit across three rounds'
+    dump(c/'reports/local_results.json',results)
+    speed=replay['pooled_speedup'];ms=speed['model_seconds'];ps=speed['pipeline_seconds']
+    lines=[
+        '# KERV 摩尔 S5000 混合量化算子优化实测报告',
+        '',f'日期：2026-10-27。Campaign：`{c.name}`。',
+        '', '## 本轮结论',
+        '', '**专用 INT8/BF16 保护组解码算子已实现，但完整模型没有稳定提速，本轮没有解决整体速度问题。** 显式实验入口采用一次解码加原生 BF16 GEMM，不作为默认替换。权重策略保持之前的75投影版本。融合 GEMM/GEMV 也已实现和测试，但本机更慢，未接入部署入口。',
+        '', f'- 相对同一量化权重的旧实现，三轮合并模型耗时比折算倍率 **{ms:.4f}×**，模型平均耗时变化 **{(1/ms-1)*100:+.3f}%**；pipeline 倍率 **{ps:.4f}×**，耗时变化 **{(1/ps-1)*100:+.3f}%**。正值表示更慢。这是相对旧量化实现，不是相对 BF16 native。',
+        f'- 三轮固定输入共 **{replay["total_frames"]}** 个动作，动作/token 完全一致 **{replay["exact_actions"]}/{replay["total_frames"]}**，执行夹爪一致 **{replay["gripper_matches"]}/{replay["total_frames"]}**。逐轮误差、最大误差列在下表，不把权重一致自动等同于端到端稳定。',
+        f'- 加载后 **{replay["decoded_weights_bit_exact"]}** 个投影的新解码权重 SHA256 全部匹配原 policy；实际算子计数均大于 0。没有常驻 BF16 权重缓存，只新增 **{replay["lookup_storage_bytes"]} bytes** 查询表。',
+        f'- 新增边界测试最终 5 项通过；完整回归 **{count} 项：{count-skipped} 通过、{skipped} 跳过**。首次 bias 融合舍入测试失败已保留，并通过保留原生 bias 路径修正。',
+        '- **原量化策略相对 BF16 的精度验收仍为 NOT_PASSED。** 本轮评估算子带来的额外差异和性能，不重新宣称成功率或精度损失很小。',
+        '', '## 环境与对照口径',
+        '', '物理 GPU0 MTT S5000 80 GiB；驱动 3.3.5-server；torch/torch_musa 2.9.1，Triton MUSA 3.2，Transformers 4.40.1。沿用既有 kerv-musa-runtime 容器、FlagScale 启动及本地 FlagOS/KERV 设备适配。没有升级驱动、依赖或安装第三方量化运行时。本地新增实现，不代表上游 FlagScale/FlagGems 已合并。',
+        '', 'verifier 为现有 OpenVLA LIBERO-Goal，drafter 为现有 SpecVLA 权重。模型、payload 和参考环境盘点在 inventory/。量化 policy 原样读取前一封存 campaign 的 model_refined/policy.json；75 个 payload 文件 SHA256 逐个验证。保留 attention/vision/drafter/head 等 BF16，以及既定 BF16 MLP 层；组内原 BF16 保护值不变。',
+        '', '## 算子机制及筛选',
+        '', '旧实现：完整 INT8→BF16 解码 → 保护组补丁 → 原生 BF16 GEMM。新实现：按输出行和输入列块组织二维网格，一次 kernel 同时进行缩放、BF16 舍入、保护组覆盖，再调用相同原生 F.linear。列块固定 1024，4 warps；alpha=0 时提前检测 inverse scale 为 1，避免前向 CPU 同步。',
+        '', '这一布局避免扁平索引对 down_proj 行宽 11008 的重复整除/取余，也减少一次 kernel 启动。group→slot 表一次构建，随模块迁移。每次仍分配临时 BF16 权重；没有声称消除全部解码或直接使用 INT8 Tensor Core。',
+        '', '| 候选 | 实测及决定 |',
+        '| --- | --- |',
+        '| 扁平索引融合解码 | gate/up 小幅变快，down 反而更慢，不作为统一后端 |',
+        '| 按列组解码 | down 有收益，作为比较保留 |',
+        '| 按行分块解码，1024 列 | 热微基准三类投影均获益，选入实验后端；整模型性能门禁未通过 |',
+        '| 融合 W8A16 GEMM | 修复 tile 布局后数值检查通过，但实际形状更慢，不派发 |',
+        '| 小行数融合 GEMV | 数值差异较小，但吞吐更差，不派发 |',
+        '', '融合 GEMM 初版 N×K tile 经转置后进入 dot，存在保护组时出现明显错误；去掉保护组则通过。改为直接 K×N tile 后最小样例和真实形状检查通过。这里描述复现及规避现象，未定位到编译器具体 pass，不能扩大为驱动通用缺陷结论。',
+        '', '## Linear 微基准',
+        '', '同一 layer15 权重，group32，BF16 保护组；gate/up 为 11008×4096，down 为 4096×11008。gate/up 输入来自此前实际捕获的 block 激活，down 输入是固定 seed 的合成 BF16 随机数，形状来自真实模型；完整回放使用真实输入。每候选先预热 4 次，再测 5 组×10 次，batch 边界同步，采用组均值中位数。重复 buffer 驻留、热缓存，编译/加载不计时。',
+        '', '| 投影 | 行数 M | 旧实现 ms | 新实现 ms | 加速 | 输出逐位一致 |',
+        '| --- | ---: | ---: | ---: | ---: | --- |']
+    for case in micro['cases']:
+        old=case['candidates']['original'];new=case['candidates']['rows_1024']
+        lines.append(f'| {case["projection"]} | {case["rows"]} | {old["median_ms"]:.4f} | {new["median_ms"]:.4f} | {new["speedup_vs_original"]:.3f}× | {new["bit_exact"]} |')
+    lines += ['', '所有微基准结果及失败候选原始日志均保留。上述倍率不代替完整模型实测。',
+        '', '## 多层权重轮换补测',
+        '', f'完整模型收益不稳定后，追加75投影轮换基准，权重及查询表驻留工作集 {rotation["working_set_bytes"]} bytes。按原MLP顺序轮换全部投影，避免只重复访问单个投影；不声称强制了每次cache miss。每种形状先各完整预热一次，再交替AB/BA测8次全75投影遍历。输入维度4096使用真实捕获激活，维度11008使用固定seed合成输入；仍属于Linear集合测试。',
+        '', '| M | 原实现75投影总ms中位数 | 新实现总ms中位数 | 倍率 |',
+        '| --- | ---: | ---: | ---: |']
+    for item in rotation['cases']:
+        lines.append(f'| {item["rows"]} | {item["median_ms"]["reference"]:.4f} | {item["median_ms"]["rows"]:.4f} | {item["speedup"]:.4f}× |')
+    lines += ['', '轮换基准与热单投影基准口径不同，两者均不能替代整模型结果；没有据此将cache认定为已定位的唯一瓶颈。',
+        '', '## 完整固定输入回放',
+        '', '同一 141 帧历史观测，每帧重置为同一 raw action 历史和 Kalman token 前缀；框架 seed17。两个 worker 使用同一 policy，各先完整预热 141 帧，再按 AB/BA/AB 顺序串行计时三轮。参数文件 SHA、实际 BF16 参数、INT8 buffer、全部解码权重逐项核对。warmup 的 frame77 带调试 tensor 导出，measured 不带；只用 measured 对 measured 计算结果。',
+        '', '两个 worker 同时驻留但不同时计算；回放内存不能当单模型冷进程峰值。日志和 profiler 不在计时路径内。相同的 policy 精度缺陷对两端均存在，此对照只检验算子替换。',
+        '', '| 轮次 | 动作/token 一致 | raw MAE | raw 最大差异 | 模型加速 | pipeline 加速 |',
+        '| --- | ---: | ---: | ---: | ---: | ---: |']
+    raw=load(c/'replays/same_policy_rows_v1/results.json')
+    for pair in raw['rounds']:
+        lines.append(f'| {pair["round"]+1} | {pair["exact_action_tokens"]}/141 | {pair["raw_action_error"]["mean"]:.9g} | {pair["max_abs"]:.9g} | {pair["model_speedup"]:.4f}× | {pair["pipeline_speedup"]:.4f}× |')
+    lines += ['', f'合并倍率按全部计时帧总耗时之比计算，非逐帧倍率平均。各 profile 自身第0轮对后续轮的 token 一致数：`{replay["within_profile_round0_token_matches"]}`。',
+        '', '## 同一真实激活的逐算子诊断',
+        '', '因首轮frame2最早出现动作分歧，另选捕获集前8帧诊断，预热和测量各一次；这是问题定位数据，不是未见精度集。每个量化Linear在同一输入上分别执行旧解码+GEMM、新解码+GEMM，并重复旧GEMM；同时重复原生topk检查。逐次比较会增加同步并改变调度，因此不能用这些时间报告性能，也不能由本次稳定推断未插桩时稳定。',
+        '', f'覆盖 {shadow["module_count"]} 个模块、{len(shadow["calls"])} 次Linear调用；全部权重逐位一致：{shadow["all_weights_exact"]}；全部新旧GEMM输出逐位一致：{shadow["all_outputs_exact"]}；原生GEMM重复全部逐位一致：{shadow["all_native_repeats_exact"]}；{len(shadow["topk_checks"])} 次topk重复全部一致：{shadow["all_topk_repeats_exact"]}。',
+        '', '该诊断只界定已观察到的局部数值差异。独立worker之间的完整动作分歧仍以未插桩回放为准；没有定位整个推理链路重复性问题的根因，不能把全部分歧归咎于量化算子或全部归咎于基线。',
+        '', '## 独立冷启动冒烟与显存',
+        '', '同 task0/state0/seed7，规划时域220，各新进程仅执行8个策略动作。它们检查部署、算子命中及早期显存，不能计算完整任务成功率，也不能当作220步全程峰值。GB=10⁹ bytes。',
+        '', '| 实现 | 执行 | 动作数 | allocated 峰值 bytes | reserved 峰值 bytes |',
+        '| --- | --- | ---: | ---: | ---: |']
+    for label in ['reference','rows']:
+        item=smoke[label];lines.append(f'| {label} | {item["execution_status"]} | {item["steps"]} | {item["peak_allocated_bytes"]} | {item["peak_reserved_bytes"]} |')
+    lines += ['',f'两次冒烟前8条动作/token一致 {smoke["same_action_tokens"]}/8，观测一致 {smoke["same_observations"]}/8。分配器 reserved 可随碎片和分配轨迹变化，不能将减少一个解码 kernel 直接等同显存峰值下降。',
+        '',f'原 policy 静态权重节省 {policy["estimated_static_saving_bytes"]} bytes；扣除查询表后为 {results["new_static_saving_bytes"]} bytes。此前2.508/2.502GB完整闭环峰值节省属于10月26日旧后端对BF16的测量，本轮没有将其作为新后端全程显存实测。',
+        '', '## 精度及验收限制',
+        '', '10月26日这份追加 policy 对 BF16 固定回放仅111/141动作一致、raw MAE约0.00481229，完整任务未完成，模型时间增加约8.8%。这些是历史不同对照的数据，不能与本轮倍率直接相乘推导相对BF16的新加速比。本轮未重新测量新后端对BF16 native的三轮性能，也未重跑完整SR矩阵。',
+        '', '新算子没有增加权重量化误差，但量化策略原有误差、BF16基线既有重复性问题和未完成的多任务验收仍需单独处理。没有测出“成功率下降≤1个百分点”，没有完成TestOutline的多芯片/多平台全部目标。默认BF16部署保持原状。',
+        '', '## 文件、复现与审计',
+        '', '- 操作指南：[MUSA_QUANTIZED_KERNELS.md](../../src/docs/MUSA_QUANTIZED_KERNELS.md)。',
+        '- 算子源码：`src/runtime_opt/KERVRuntimeOptimization/calibrated_w8a16_ops.py`；显式入口：`run_calibrated_kernel_libero.py`。',
+        '- `inventory/selection.json`：选择决定；`microbench_*/`与`operations/`：全部微基准和失败日志。',
+        '- `replays/same_policy_rows_v1/`：三轮逐帧记录、命令、源文件哈希、权重审计及独立复算结果。',
+        '- `runs/smoke_{reference,rows}_s7/`：冷进程内存、动作、算子次数、命令及视频。',
+        '- `reports/local_results.json`：机器可读结果；`inventory/source_final.tar.gz`：本地源码和文档归档；`checksums.sha256`：本轮文件哈希。',
+        '', '既有校准 campaign 保持封存。本轮不重复打包原BF16 checkpoint及75个量化payload，依赖路径与SHA在 inventory/payload_manifest.json、weight_manifest.json；跨机器交付须同时携带这些依赖。最早实验的部分布局试改只保留失败日志和相邻源码快照，不能声称每个中间版本完整复原；最终接入推理源码另存独立实体和归档。',
+        '', '证据完整性PASS表示数据可以复算，不表示量化策略质量或甲方任务书验收PASS。', '']
+    report=r/'docs/acceptance/MOORE_QUANTIZED_KERNEL_REPORT_20261027.md'
+    report.write_text('\n'.join(lines));(c/'summary.md').write_text('\n'.join(lines))
+    print(report)
+
+
+if __name__=='__main__':main()

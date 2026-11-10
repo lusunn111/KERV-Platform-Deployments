@@ -1,0 +1,2 @@
+[console_scripts]
+flagscale = flagscale.cli:flagscale

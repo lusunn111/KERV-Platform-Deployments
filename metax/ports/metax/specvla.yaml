@@ -1,0 +1,12 @@
+# Real pinned upstream SpecVLA. Native MACA math; no KERV speculation or KF.
+experiment:
+  exp_name: specvla_metax_independent
+  envs:
+    KERV_METAX_V2: ""
+    KERV_METAX_QUANT: none
+inference:
+  runtime:
+    use_kalman_tree: false
+    use_kalman_fallback: false
+    embodied_ops:
+      enabled: false

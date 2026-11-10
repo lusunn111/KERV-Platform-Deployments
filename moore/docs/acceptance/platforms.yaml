@@ -1,0 +1,24 @@
+{
+  "platforms": [
+    {
+      "id": "P1",
+      "framework": "LIBERO",
+      "suite": "libero_goal",
+      "revision": "8f1084e3132a39270c3a13ebe37270a43ece2a01",
+      "formal_recognition": "UNCONFIRMED",
+      "status": "AVAILABLE_FOR_LOCAL_SELF_TEST",
+      "official_tasks": 10,
+      "scope": "one task, one official initial state, three seeds pre-registered below"
+    },
+    {
+      "id": "P2",
+      "status": "BLOCKED",
+      "reason": "No additional approved platform/model pair"
+    },
+    {
+      "id": "P3",
+      "status": "BLOCKED",
+      "reason": "No additional approved platform/model pair"
+    }
+  ]
+}

@@ -1,0 +1,41 @@
+diff --git a/torch/nn/functional.py b/torch/nn/functional.py
+index 04467c65ef0..e4c34da6644 100644
+--- a/torch/nn/functional.py
++++ b/torch/nn/functional.py
+@@ -6910,3 +6910,36 @@ def scaled_grouped_mm(
+     )
+ 
+     return out
++
++def swish_glu(input: Tensor) -> Tensor:  # noqa: D400,D402
++    r"""swish_glu(input, inplace=False) -> Tensor
++
++    Applies swish gate linear unit operator.
++    See :class:`~torch.nn.SwiGLU` for more details.
++    """
++    if has_torch_function_unary(input):
++        return handle_torch_function(swish_glu, (input,), input)
++    result = torch.swish_glu(input)
++    return result
++
++
++def rope(
++    input: Tensor,
++    freq_cis: Tensor,
++    rotary_interleaved: bool = False,
++    batch_first: bool = False,
++    multi_latent_attention: bool = False,
++) -> Tensor:
++    r"""Rotary position embedding forward"""
++    if has_torch_function_variadic(input, freq_cis):
++        return handle_torch_function(
++            rope,
++            (input, freq_cis),
++            input,
++            freq_cis,
++            rotary_interleaved,
++            batch_first,
++            multi_latent_attention,
++        )
++    return torch.rope(input, freq_cis, rotary_interleaved, batch_first, multi_latent_attention)
++

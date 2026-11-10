@@ -1,0 +1,8 @@
+{
+  "source_dir": "/workspace/third_party/FlagGems-v3",
+  "build_dir": "/workspace/third_party/FlagGems-v3/build/cpython-310",
+  "cmake_path": "/tmp/pip-build-env-vzc5xgpx/normal/lib/python3.10/site-packages/cmake/data/bin/cmake",
+  "skbuild_path": "/tmp/pip-build-env-vzc5xgpx/overlay/lib/python3.10/site-packages/scikit_build_core",
+  "skbuild_version": "1.1.0",
+  "python_executable": "/workspace/.venv/bin/python"
+}

@@ -1,0 +1,31 @@
+diff --git a/src/flag_gems/runtime/backend/_mthreads/__init__.py b/src/flag_gems/runtime/backend/_mthreads/__init__.py
+index 8739a3c..3844562 100644
+--- a/src/flag_gems/runtime/backend/_mthreads/__init__.py
++++ b/src/flag_gems/runtime/backend/_mthreads/__init__.py
+@@ -1,7 +1,8 @@
+ from backend_utils import VendorInfoBase  # noqa: E402
+ 
+ vendor_info = VendorInfoBase(
+-    vendor_name="mthreads", device_name="musa", device_query_cmd="mthreads-gmi"
++    vendor_name="mthreads", device_name="musa", device_query_cmd="mthreads-gmi",
++    dispatch_key="PrivateUse1",
+ )
+ 
+ CUSTOMIZED_UNUSED_OPS = ()
+diff --git a/src/flag_gems/runtime/configloader.py b/src/flag_gems/runtime/configloader.py
+index 79dd142..6be6f74 100644
+--- a/src/flag_gems/runtime/configloader.py
++++ b/src/flag_gems/runtime/configloader.py
+@@ -23,7 +23,11 @@ class ConfigLoader(object):
+             # and is reserved from being an attr for vendor customizability
+             self.vendor_primitive_yaml_config = self.get_vendor_tune_config()
+             self.default_primitive_yaml_config = self.get_default_tune_config()
+-            self.heuristics_config = self.get_vendor_heuristics_config()
++            # Older MUSA backends omit heuristics used by generic kernels.
++            # Keep vendor overrides and inherit the generic default entries,
++            # following the existing default tune-config fallback below.
++            self.heuristics_config = dict(backend.get_heuristic_config("nvidia") or {})
++            self.heuristics_config.update(self.get_vendor_heuristics_config() or {})
+ 
+             if self.heuristics_config is None:
+                 vendorname = self.device.vendor_name

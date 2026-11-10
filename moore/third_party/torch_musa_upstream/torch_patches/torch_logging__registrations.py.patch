@@ -1,0 +1,27 @@
+diff --git a/torch/_logging/_registrations.py b/torch/_logging/_registrations.py
+index 73ac531..e11f4ef 100644
+--- a/torch/_logging/_registrations.py
++++ b/torch/_logging/_registrations.py
+@@ -26,6 +26,10 @@ register_artifact(
+     "cudagraphs",
+     "Logs information from wrapping inductor generated code with cudagraphs.",
+ )
++register_artifact(
++    "musagraphs",
++    "Logs information from wrapping inductor generated code with musagraphs.",
++)
+ 
+ register_log("dynamic", DYNAMIC)
+ register_log("torch", "torch")
+@@ -202,6 +206,11 @@ register_artifact(
+     "Logs static inputs handling in dynamo, AOT, and cudagraphs",
+     off_by_default=True,
+ )
++register_artifact(
++    "musagraph_static_inputs",
++    "Logs static inputs handling in dynamo, AOT, and musagraphs",
++    off_by_default=True,
++)
+ register_artifact(
+     "benchmarking",
+     "Detailed Inductor benchmarking information.",

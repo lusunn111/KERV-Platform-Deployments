@@ -1,0 +1,52 @@
+# Copyright 2026 FlagOS Contributors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+defaults:
+- _self_
+- serve: 7b
+
+experiment:
+  exp_name: qwen2.5_7b
+  exp_dir: outputs/${experiment.exp_name}
+  task:
+    type: serve
+    backend: vllm
+  runner:
+    hostfile: examples/qwen2_5/conf/hostfile.txt
+    docker: pd
+    deploy:
+      port: 10001
+      use_fs_serve: false
+      prefill_decode_disaggregation: true
+      prefill_num: 2
+      #prefill_address: x.x.x.x # optional, default "auto"
+      decode_num: 2
+      #decode_address: x.x.x.x # optional, default "auto"
+      prefill_decode_strategy: random # optional, one of [slo|random|robin], default slo
+  envs:
+    CUDA_DEVICE_MAX_CONNECTIONS: 1
+    FLAGCX_SOCKET_IFNAME: bond0
+    FLAGCX_PATH: /path/to/FlagCX/
+    FLAGCX_DEBUG: TRACE
+    FLAGCX_DEBUG_SUBSYS: ALL
+    USE_FLAGCX: true
+    VLLM_USE_V1: 1 # optional, default 1
+  cmds:
+    before_start: source /root/miniconda3/bin/activate flagscale-inference
+
+action: run
+
+hydra:
+  run:
+    dir: ${experiment.exp_dir}/hydra

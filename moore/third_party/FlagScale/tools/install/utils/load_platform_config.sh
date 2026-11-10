@@ -1,0 +1,134 @@
+#!/bin/bash
+
+# Copyright 2026 FlagOS Contributors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Platform configuration loading script
+# Extracts platform configuration and groups tests by task
+# Usage: source load_platform_config.sh && load_platform_config <platform_name>
+
+set -euo pipefail
+
+load_platform_config() {
+    local PLATFORM=$1
+    local CONFIG_FILE=".github/configs/${PLATFORM}.yml"
+
+    echo "Loading platform configuration for: $PLATFORM"
+
+    if [ ! -f "$CONFIG_FILE" ]; then
+        echo "❌ Error: Platform configuration file not found: $CONFIG_FILE"
+        return 1
+    fi
+
+    # Extract CI/CD configuration from .github/configs using yq
+    echo "Extracting configuration from $CONFIG_FILE"
+    CI_TRAIN_IMAGE=$(/usr/local/bin/yq -r '.ci_train_image // .ci_image // ""' "$CONFIG_FILE")
+    RUNNER_LABELS=$(/usr/local/bin/yq -o=json -I=0 '.runner_labels' "$CONFIG_FILE")
+    VOLUMES=$(/usr/local/bin/yq -o=json -I=0 '.container_volumes' "$CONFIG_FILE")
+    CONTAINER_OPTIONS=$(/usr/local/bin/yq -r '.container_options' "$CONFIG_FILE")
+
+    # Extract package manager configuration
+    PKG_MGR=$(/usr/local/bin/yq -r '.pkg_mgr // "uv"' "$CONFIG_FILE")
+    ENV_PATH=$(/usr/local/bin/yq -r '.env_path // "/opt/venv"' "$CONFIG_FILE")
+    ENV_NAME_TRAIN=$(/usr/local/bin/yq -r '.env_names.train // "flagscale-train"' "$CONFIG_FILE")
+    ENV_NAME_RL=$(/usr/local/bin/yq -r '.env_names.rl // "flagscale-rl"' "$CONFIG_FILE")
+
+    # Extract dependencies configuration
+    MEGATRON_LM_FL_ENABLED=$(/usr/local/bin/yq -r '.dependencies.megatron_lm_fl.enabled // false' "$CONFIG_FILE")
+    TE_FL_ENABLED=$(/usr/local/bin/yq -r '.dependencies.te_fl.enabled // false' "$CONFIG_FILE")
+    MEGATRON_RUNTIME_ENVIRONMENT=$(/usr/local/bin/yq -o=json -I=0 '.dependencies.megatron_lm_fl.runtime.environment // {}' "$CONFIG_FILE")
+    TE_FL_RUNTIME_ENVIRONMENT=$(/usr/local/bin/yq -o=json -I=0 '.dependencies.te_fl.runtime.environment // {}' "$CONFIG_FILE")
+    TE_FL_INSTALL_PIP_ARGS=$(/usr/local/bin/yq -o=json -I=0 '.dependencies.te_fl.runtime.install_pip_args // []' "$CONFIG_FILE")
+    TE_FL_RUNTIME_PIP_PACKAGES=$(/usr/local/bin/yq -o=json -I=0 '.dependencies.te_fl.runtime.pip_packages // []' "$CONFIG_FILE")
+    SETUP_SCRIPT=$(/usr/local/bin/yq -r '.setup_script // ""' "$CONFIG_FILE")
+
+    echo "Package manager: $PKG_MGR"
+    echo "Environment path: $ENV_PATH"
+    echo "Environment names: train=$ENV_NAME_TRAIN, rl=$ENV_NAME_RL"
+
+    # Validate required fields
+    if [ -z "$CI_TRAIN_IMAGE" ] || [ "$CI_TRAIN_IMAGE" = "null" ]; then
+        echo "❌ Error: ci_train_image not found in $CONFIG_FILE"
+        return 1
+    fi
+    if [ -z "$RUNNER_LABELS" ] || [ "$RUNNER_LABELS" = "null" ]; then
+        echo "❌ Error: runner_labels not found in $CONFIG_FILE"
+        return 1
+    fi
+
+    # Query device types from test platform configuration
+    echo "Querying device types for platform: $PLATFORM"
+    DEVICE_TYPES=$(python tests/test_utils/runners/parse_config.py --platform "$PLATFORM" --type device_types 2>/dev/null || echo '[]')
+    echo "Device types: $DEVICE_TYPES"
+
+    # Discover functional test matrix (device/task/model/case combinations)
+    echo "Discovering functional test matrix..."
+    FUNCTIONAL_TEST_MATRIX="[]"
+
+    # Parse functional tests from platform configuration for each device type
+    if [ -f "tests/test_utils/runners/parse_config.py" ]; then
+        FUNCTIONAL_TEST_MATRIX=$(echo "$DEVICE_TYPES" | jq -r '.[]' | while read device; do
+            # Get functional tests for this device from platform config
+            functional_json=$(python tests/test_utils/runners/parse_config.py \
+                --platform "$PLATFORM" \
+                --device "$device" \
+                --type functional 2>/dev/null || echo '{}')
+
+            # Convert the functional tests JSON to device/task/model/case matrix entries
+            echo "$functional_json" | jq -r 'to_entries[] | .key as $task | .value | to_entries[] | .key as $model | .value[] | {device: "'"$device"'", task: $task, model: $model, case: .}'
+        done | jq -s -c '.')
+    fi
+    echo "Functional test matrix: $FUNCTIONAL_TEST_MATRIX"
+
+    # Group tests by task type for separate workflows
+    echo "Grouping tests by task type..."
+    TRAIN_TESTS=$(echo "$FUNCTIONAL_TEST_MATRIX" | jq -c '[.[] | select(.task == "train")]')
+    HETERO_TRAIN_TESTS=$(echo "$FUNCTIONAL_TEST_MATRIX" | jq -c '[.[] | select(.task == "hetero_train")]')
+    RL_TESTS=$(echo "$FUNCTIONAL_TEST_MATRIX" | jq -c '[.[] | select(.task == "rl")]')
+    BENCHMARK_TESTS=$(echo "$FUNCTIONAL_TEST_MATRIX" | jq -c '[.[] | select(.task == "benchmark")]')
+
+    echo "Train tests: $(echo "$TRAIN_TESTS" | jq 'length') test(s)"
+    echo "Hetero train tests: $(echo "$HETERO_TRAIN_TESTS" | jq 'length') test(s)"
+    echo "RL tests: $(echo "$RL_TESTS" | jq 'length') test(s)"
+    echo "Benchmark tests: $(echo "$BENCHMARK_TESTS" | jq 'length') test(s)"
+
+    echo "✅ Loaded config for platform: $PLATFORM"
+
+    # Output values to $GITHUB_OUTPUT
+    echo "ci_train_image=$CI_TRAIN_IMAGE" >> $GITHUB_OUTPUT
+    echo "container_options=$CONTAINER_OPTIONS" >> $GITHUB_OUTPUT
+
+    { echo 'runs_on<<EOFRUNSON'; echo "$RUNNER_LABELS"; echo 'EOFRUNSON'; } >> $GITHUB_OUTPUT
+    { echo 'container_volumes<<EOFVOLUMES'; echo "$VOLUMES"; echo 'EOFVOLUMES'; } >> $GITHUB_OUTPUT
+    { echo 'device_types<<EOFDEVICETYPES'; echo "$DEVICE_TYPES"; echo 'EOFDEVICETYPES'; } >> $GITHUB_OUTPUT
+    { echo 'train_test_matrix<<EOFTRAIN'; echo "$TRAIN_TESTS"; echo 'EOFTRAIN'; } >> $GITHUB_OUTPUT
+    { echo 'hetero_train_test_matrix<<EOFHETEROTRAIN'; echo "$HETERO_TRAIN_TESTS"; echo 'EOFHETEROTRAIN'; } >> $GITHUB_OUTPUT
+    { echo 'rl_test_matrix<<EOFRL'; echo "$RL_TESTS"; echo 'EOFRL'; } >> $GITHUB_OUTPUT
+    { echo 'benchmark_test_matrix<<EOFBENCHMARK'; echo "$BENCHMARK_TESTS"; echo 'EOFBENCHMARK'; } >> $GITHUB_OUTPUT
+
+    # Output package manager configuration
+    echo "pkg_mgr=$PKG_MGR" >> $GITHUB_OUTPUT
+    echo "env_path=$ENV_PATH" >> $GITHUB_OUTPUT
+    echo "env_name_train=$ENV_NAME_TRAIN" >> $GITHUB_OUTPUT
+    echo "env_name_rl=$ENV_NAME_RL" >> $GITHUB_OUTPUT
+
+    # Output dependencies configuration
+    echo "megatron_lm_fl_enabled=$MEGATRON_LM_FL_ENABLED" >> $GITHUB_OUTPUT
+    echo "te_fl_enabled=$TE_FL_ENABLED" >> $GITHUB_OUTPUT
+    echo "megatron_runtime_environment=$MEGATRON_RUNTIME_ENVIRONMENT" >> $GITHUB_OUTPUT
+    echo "te_fl_runtime_environment=$TE_FL_RUNTIME_ENVIRONMENT" >> $GITHUB_OUTPUT
+    echo "te_fl_install_pip_args=$TE_FL_INSTALL_PIP_ARGS" >> $GITHUB_OUTPUT
+    echo "te_fl_runtime_pip_packages=$TE_FL_RUNTIME_PIP_PACKAGES" >> $GITHUB_OUTPUT
+    echo "setup_script=$SETUP_SCRIPT" >> $GITHUB_OUTPUT
+}

@@ -1,0 +1,181 @@
+# Copyright 2026 FlagOS Contributors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# CUDA Hardware Configuration
+# This file defines CI/CD settings for CUDA-based testing
+# Test configurations are defined in tests/test_utils/config/platforms/cuda.yaml
+
+hardware_name: cuda
+display_name: "CUDA Tests"
+
+# Docker image for this hardware
+ci_image: harbor.baai.ac.cn/flagos/flagscale:cuda12.8.1-cudnn9.7.1-python3.12-torch2.7.0-time2507111538
+ci_train_image: harbor.baai.ac.cn/flagscale/flagscale-train:dev-cu128-py3.12-20260228210721
+ci_inference_image: harbor.baai.ac.cn/flagscale/flagscale-inference:dev-cu128-py3.12-20260302102033
+
+# Runner labels for this hardware
+runner_labels: ['flagscale-nvidia-a100-gpu2-32c-128g']
+
+# Image build contract consumed by the generic image-build workflow.
+image_build:
+  enabled: true
+  registry: harbor.baai.ac.cn
+  target: dev
+  network: default
+  max_parallel: 1
+  registry_login: false
+  runner_labels: [self-hosted, Linux, X64, nvidia-0, gpus-8]
+  validation_script: tools/install/cuda/validate_image_build.sh
+  tasks:
+    train:
+      dockerfile: docker/cuda/Dockerfile.train
+      image: flagos-dev/flagscale-train
+      base_image: nvidia/cuda:12.8.1-devel-ubuntu22.04
+      test_roles: [train]
+      build_args:
+        CUDA_VERSION: '12.8.1'
+        UBUNTU_VERSION: '22.04'
+        PYTHON_VERSION: '3.12'
+        UV_VERSION: '0.7.2'
+        PKG_MGR: conda
+        PYTORCH_INDEX: https://download.pytorch.org/whl/cu128
+      source_refs:
+        FLAGSCALE_MEGATRON_REF: megatron_lm_fl
+        FLAGSCALE_TE_REF: transformer_engine_fl
+    inference:
+      dockerfile: docker/cuda/Dockerfile.inference
+      image: flagos-dev/flagscale-inference
+      base_image: nvidia/cuda:12.8.1-devel-ubuntu22.04
+      test_roles: [inference]
+      build_args:
+        CUDA_VERSION: '12.8.1'
+        UBUNTU_VERSION: '22.04'
+        PYTHON_VERSION: '3.12'
+        UV_VERSION: '0.7.2'
+        PKG_MGR: conda
+        PYTORCH_INDEX: https://download.pytorch.org/whl/cu128
+    all:
+      dockerfile: docker/cuda/Dockerfile.all
+      image: flagos-dev/flagscale-all
+      base_image: nvidia/cuda:12.8.1-devel-ubuntu22.04
+      test_roles: [train, inference]
+      test_environments:
+        train:
+          pkg_mgr: conda
+          env_name: flagscale-all
+          env_path: /opt/flagscale/miniconda3
+        inference:
+          pkg_mgr: conda
+          env_name: flagscale-all
+          env_path: /opt/flagscale/miniconda3
+        serve:
+          pkg_mgr: conda
+          env_name: flagscale-all
+          env_path: /opt/flagscale/miniconda3
+      build_args:
+        CUDA_VERSION: '12.8.1'
+        UBUNTU_VERSION: '22.04'
+        PYTHON_VERSION: '3.12'
+        UV_VERSION: '0.7.2'
+        PKG_MGR: conda
+        PYTORCH_INDEX: https://download.pytorch.org/whl/cu128
+      source_refs:
+        FLAGSCALE_MEGATRON_REF: megatron_lm_fl
+        FLAGSCALE_TE_REF: transformer_engine_fl
+
+# Container volumes (hardware-specific paths)
+container_volumes:
+  - /mnt/airs-business/cicd/baai_datasets:/home/gitlab-runner/data
+  - /mnt/airs-business/cicd/baai_tokenizers:/home/gitlab-runner/tokenizers
+  - /etc/hosts:/etc/hosts:ro
+
+# Container options (hardware-specific settings)
+container_options: >-
+  --gpus all
+  --shm-size=500g
+  --hostname flagscale_cicd
+  --user root
+  --ulimit nofile=65535:65535
+  --cap-add SYS_ADMIN
+  --cap-add SYS_PTRACE
+  --cap-add IPC_LOCK
+  --cap-add NET_ADMIN
+  --security-opt seccomp=unconfined
+
+# =============================================================================
+# Package Manager Configuration
+# =============================================================================
+# Supported package managers: pip, uv, conda
+#   - pip:   Use pip directly (standard Python)
+#   - uv:    Use uv pip (fast, modern package manager)
+#   - conda: Use conda environment with pip for PyPI packages
+#
+# Unified environment parameters:
+#   - env_name: Conda environment name (for conda only)
+#   - env_path: Environment path (venv path for uv, conda installation path for conda)
+#
+# To transition to uv in the future:
+#   1. Change pkg_mgr to "uv"
+#   2. Ensure uv is installed in the Docker image
+#   3. Set env_path to the virtual environment path (e.g., "/opt/venv")
+#
+pkg_mgr: "conda"  # Current: conda for CI/CD compatibility
+
+# Environment path (venv path for uv, conda installation path for conda)
+env_path: "/root/miniconda3"
+
+# Conda environment name (for conda only)
+env_names:
+  train: "flagscale-train"
+  hetero_train: "flagscale-train"
+  inference: "flagscale-inference"
+  serve: "flagscale-inference"
+  rl: "flagscale-rl"
+
+# Setup script for environment preparation
+setup_script: .github/scripts/set_env_cuda.sh
+
+# Test matrix configuration for unit tests
+test_matrix:
+  unit:
+    nproc_per_node: 8
+
+# =============================================================================
+# Dependencies Configuration (Megatron-LM-FL & TE-FL)
+# =============================================================================
+dependencies:
+  megatron_lm_fl:
+    enabled: true
+    repository: flagos-ai/Megatron-LM-FL
+    ref: main
+    runtime:
+      install_mode: pythonpath
+      environment: {}
+
+  te_fl:
+    enabled: true
+    repository: flagos-ai/TransformerEngine-FL
+    ref: main
+    build_mode: cuda
+    build_environment:
+      # NCCL-EP requires the internal nccl_device.h header, which is not
+      # shipped by the system NCCL installation in the CUDA CI image.
+      NVTE_WITH_NCCL_EP: "0"
+    runtime:
+      environment:
+        NVTE_WITH_NCCL_EP: "0"
+        TE_FL_PREFER: flagos
+      install_pip_args: []
+      pip_packages:
+        - "megatron-energon[av_decode]~=7.0"

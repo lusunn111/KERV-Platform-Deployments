@@ -1,0 +1,33 @@
+# Copyright 2026 FlagOS Contributors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+engine:
+  model: ${experiment.model}
+  loader: diffusers
+  results_path: ${experiment.exp_dir}/results
+  output_format: image
+  device: "cuda"
+  torch_dtype: float16
+  transformations:
+    LogIOTransformation:
+      log_level: "info"
+    StateScopeTransformation:
+      {}
+
+generate:
+  prompts: "retro series of different cars with different colors and shapes, mdjrny-v4 style"
+  width: 512
+  height: 512
+  num_inference_steps: 50
+  guidance_scale: 7.0

@@ -1,0 +1,690 @@
+Metadata-Version: 2.4
+Name: flagscale
+Version: 1.0.0
+Summary: FlagScale is a comprehensive toolkit designed to support the entire lifecycle of large models, developed with the backing of the Beijing Academy of Artificial Intelligence (BAAI).
+License: Apache-2.0
+Project-URL: Homepage, https://github.com/flagos-ai/FlagScale.git
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: typer>=0.9.0
+Requires-Dist: hydra-core
+Provides-Extra: ascend
+Requires-Dist: hydra-core==1.3.2; extra == "ascend"
+Requires-Dist: wandb==0.19.1; extra == "ascend"
+Requires-Dist: numpy==1.26.4; extra == "ascend"
+Requires-Dist: scipy==1.14.1; extra == "ascend"
+Requires-Dist: pandas==2.2.3; extra == "ascend"
+Requires-Dist: matplotlib==3.9.4; extra == "ascend"
+Requires-Dist: tqdm==4.67.1; extra == "ascend"
+Requires-Dist: requests==2.32.3; extra == "ascend"
+Requires-Dist: aiohttp==3.11.11; extra == "ascend"
+Requires-Dist: pyyaml==6.0.3; extra == "ascend"
+Requires-Dist: regex==2025.10.22; extra == "ascend"
+Requires-Dist: typer>=0.9.0; extra == "ascend"
+Requires-Dist: datasets==4.5.0; extra == "ascend"
+Requires-Dist: diffusers==0.36.0; extra == "ascend"
+Requires-Dist: draccus==0.11.5; extra == "ascend"
+Requires-Dist: einops==0.8.2; extra == "ascend"
+Requires-Dist: epath==0.7; extra == "ascend"
+Requires-Dist: flask_cors==6.0.2; extra == "ascend"
+Requires-Dist: multi-storage-client==0.42.0; extra == "ascend"
+Requires-Dist: qwen_vl_utils==0.0.14; extra == "ascend"
+Requires-Dist: webdataset==1.0.2; extra == "ascend"
+Provides-Extra: ascend-serve
+Provides-Extra: ascend-train
+Requires-Dist: hydra-core==1.3.2; extra == "ascend-train"
+Requires-Dist: wandb==0.19.1; extra == "ascend-train"
+Requires-Dist: numpy==1.26.4; extra == "ascend-train"
+Requires-Dist: scipy==1.14.1; extra == "ascend-train"
+Requires-Dist: pandas==2.2.3; extra == "ascend-train"
+Requires-Dist: matplotlib==3.9.4; extra == "ascend-train"
+Requires-Dist: tqdm==4.67.1; extra == "ascend-train"
+Requires-Dist: requests==2.32.3; extra == "ascend-train"
+Requires-Dist: aiohttp==3.11.11; extra == "ascend-train"
+Requires-Dist: pyyaml==6.0.3; extra == "ascend-train"
+Requires-Dist: regex==2025.10.22; extra == "ascend-train"
+Requires-Dist: typer>=0.9.0; extra == "ascend-train"
+Requires-Dist: datasets==4.5.0; extra == "ascend-train"
+Requires-Dist: diffusers==0.36.0; extra == "ascend-train"
+Requires-Dist: draccus==0.11.5; extra == "ascend-train"
+Requires-Dist: einops==0.8.2; extra == "ascend-train"
+Requires-Dist: epath==0.7; extra == "ascend-train"
+Requires-Dist: flask_cors==6.0.2; extra == "ascend-train"
+Requires-Dist: multi-storage-client==0.42.0; extra == "ascend-train"
+Requires-Dist: qwen_vl_utils==0.0.14; extra == "ascend-train"
+Requires-Dist: webdataset==1.0.2; extra == "ascend-train"
+Requires-Dist: sentencepiece==0.2.1; extra == "ascend-train"
+Requires-Dist: transformers==4.57.6; extra == "ascend-train"
+Requires-Dist: tiktoken==0.12.0; extra == "ascend-train"
+Requires-Dist: peft==0.18.1; extra == "ascend-train"
+Provides-Extra: cuda-all
+Requires-Dist: hydra-core==1.3.2; extra == "cuda-all"
+Requires-Dist: wandb==0.19.1; extra == "cuda-all"
+Requires-Dist: numpy==1.26.4; extra == "cuda-all"
+Requires-Dist: scipy==1.14.1; extra == "cuda-all"
+Requires-Dist: pandas==2.2.3; extra == "cuda-all"
+Requires-Dist: matplotlib==3.9.4; extra == "cuda-all"
+Requires-Dist: tqdm==4.67.1; extra == "cuda-all"
+Requires-Dist: requests==2.32.3; extra == "cuda-all"
+Requires-Dist: aiohttp==3.11.11; extra == "cuda-all"
+Requires-Dist: pyyaml==6.0.3; extra == "cuda-all"
+Requires-Dist: regex==2025.10.22; extra == "cuda-all"
+Requires-Dist: typer>=0.9.0; extra == "cuda-all"
+Requires-Dist: torch==2.9.0; extra == "cuda-all"
+Requires-Dist: torchaudio==2.9.0; extra == "cuda-all"
+Requires-Dist: torchvision==0.24.0; extra == "cuda-all"
+Requires-Dist: datasets==4.5.0; extra == "cuda-all"
+Requires-Dist: diffusers==0.36.0; extra == "cuda-all"
+Requires-Dist: draccus==0.11.5; extra == "cuda-all"
+Requires-Dist: einops==0.8.2; extra == "cuda-all"
+Requires-Dist: epath==0.7; extra == "cuda-all"
+Requires-Dist: flask_cors==6.0.2; extra == "cuda-all"
+Requires-Dist: multi-storage-client==0.42.0; extra == "cuda-all"
+Requires-Dist: qwen_vl_utils==0.0.14; extra == "cuda-all"
+Requires-Dist: webdataset==1.0.2; extra == "cuda-all"
+Requires-Dist: sentencepiece==0.2.1; extra == "cuda-all"
+Requires-Dist: transformers==4.57.6; extra == "cuda-all"
+Requires-Dist: tiktoken==0.12.0; extra == "cuda-all"
+Requires-Dist: megatron_core @ https://resource.flagos.net/repository/flagos-pypi-hosted/packages/megatron-core/0.16.0rc0/megatron_core-0.16.0rc0-cp312-cp312-linux_x86_64.whl ; extra == "cuda-all"
+Requires-Dist: hydra-core==1.3.2; extra == "cuda-all"
+Requires-Dist: wandb==0.19.1; extra == "cuda-all"
+Requires-Dist: numpy==1.26.4; extra == "cuda-all"
+Requires-Dist: scipy==1.14.1; extra == "cuda-all"
+Requires-Dist: pandas==2.2.3; extra == "cuda-all"
+Requires-Dist: matplotlib==3.9.4; extra == "cuda-all"
+Requires-Dist: tqdm==4.67.1; extra == "cuda-all"
+Requires-Dist: requests==2.32.3; extra == "cuda-all"
+Requires-Dist: aiohttp==3.11.11; extra == "cuda-all"
+Requires-Dist: pyyaml==6.0.3; extra == "cuda-all"
+Requires-Dist: regex==2025.10.22; extra == "cuda-all"
+Requires-Dist: typer>=0.9.0; extra == "cuda-all"
+Requires-Dist: torch==2.9.0; extra == "cuda-all"
+Requires-Dist: torchaudio==2.9.0; extra == "cuda-all"
+Requires-Dist: torchvision==0.24.0; extra == "cuda-all"
+Requires-Dist: datasets==4.5.0; extra == "cuda-all"
+Requires-Dist: diffusers==0.36.0; extra == "cuda-all"
+Requires-Dist: draccus==0.11.5; extra == "cuda-all"
+Requires-Dist: einops==0.8.2; extra == "cuda-all"
+Requires-Dist: epath==0.7; extra == "cuda-all"
+Requires-Dist: flask_cors==6.0.2; extra == "cuda-all"
+Requires-Dist: multi-storage-client==0.42.0; extra == "cuda-all"
+Requires-Dist: qwen_vl_utils==0.0.14; extra == "cuda-all"
+Requires-Dist: webdataset==1.0.2; extra == "cuda-all"
+Requires-Dist: vllm @ https://resource.flagos.net/repository/flagos-pypi-hosted/packages/vllm/0.13.0%2Bfl.0.1.cu128.g72506c983/vllm-0.13.0%2Bfl.0.1.cu128.g72506c983-cp312-cp312-linux_x86_64.whl ; extra == "cuda-all"
+Requires-Dist: transformers==4.57.6; extra == "cuda-all"
+Requires-Dist: hydra-core==1.3.2; extra == "cuda-all"
+Requires-Dist: wandb==0.19.1; extra == "cuda-all"
+Requires-Dist: numpy==1.26.4; extra == "cuda-all"
+Requires-Dist: scipy==1.14.1; extra == "cuda-all"
+Requires-Dist: pandas==2.2.3; extra == "cuda-all"
+Requires-Dist: matplotlib==3.9.4; extra == "cuda-all"
+Requires-Dist: tqdm==4.67.1; extra == "cuda-all"
+Requires-Dist: requests==2.32.3; extra == "cuda-all"
+Requires-Dist: aiohttp==3.11.11; extra == "cuda-all"
+Requires-Dist: pyyaml==6.0.3; extra == "cuda-all"
+Requires-Dist: regex==2025.10.22; extra == "cuda-all"
+Requires-Dist: typer>=0.9.0; extra == "cuda-all"
+Requires-Dist: torch==2.9.0; extra == "cuda-all"
+Requires-Dist: torchaudio==2.9.0; extra == "cuda-all"
+Requires-Dist: torchvision==0.24.0; extra == "cuda-all"
+Requires-Dist: datasets==4.5.0; extra == "cuda-all"
+Requires-Dist: diffusers==0.36.0; extra == "cuda-all"
+Requires-Dist: draccus==0.11.5; extra == "cuda-all"
+Requires-Dist: einops==0.8.2; extra == "cuda-all"
+Requires-Dist: epath==0.7; extra == "cuda-all"
+Requires-Dist: flask_cors==6.0.2; extra == "cuda-all"
+Requires-Dist: multi-storage-client==0.42.0; extra == "cuda-all"
+Requires-Dist: qwen_vl_utils==0.0.14; extra == "cuda-all"
+Requires-Dist: webdataset==1.0.2; extra == "cuda-all"
+Requires-Dist: hydra-core==1.3.2; extra == "cuda-all"
+Requires-Dist: wandb==0.19.1; extra == "cuda-all"
+Requires-Dist: numpy==1.26.4; extra == "cuda-all"
+Requires-Dist: scipy==1.14.1; extra == "cuda-all"
+Requires-Dist: pandas==2.2.3; extra == "cuda-all"
+Requires-Dist: matplotlib==3.9.4; extra == "cuda-all"
+Requires-Dist: tqdm==4.67.1; extra == "cuda-all"
+Requires-Dist: requests==2.32.3; extra == "cuda-all"
+Requires-Dist: aiohttp==3.11.11; extra == "cuda-all"
+Requires-Dist: pyyaml==6.0.3; extra == "cuda-all"
+Requires-Dist: regex==2025.10.22; extra == "cuda-all"
+Requires-Dist: typer>=0.9.0; extra == "cuda-all"
+Requires-Dist: torch==2.9.0; extra == "cuda-all"
+Requires-Dist: torchaudio==2.9.0; extra == "cuda-all"
+Requires-Dist: torchvision==0.24.0; extra == "cuda-all"
+Requires-Dist: datasets==4.5.0; extra == "cuda-all"
+Requires-Dist: diffusers==0.36.0; extra == "cuda-all"
+Requires-Dist: draccus==0.11.5; extra == "cuda-all"
+Requires-Dist: einops==0.8.2; extra == "cuda-all"
+Requires-Dist: epath==0.7; extra == "cuda-all"
+Requires-Dist: flask_cors==6.0.2; extra == "cuda-all"
+Requires-Dist: multi-storage-client==0.42.0; extra == "cuda-all"
+Requires-Dist: qwen_vl_utils==0.0.14; extra == "cuda-all"
+Requires-Dist: webdataset==1.0.2; extra == "cuda-all"
+Requires-Dist: vllm @ https://resource.flagos.net/repository/flagos-pypi-hosted/packages/vllm/0.13.0%2Bfl.0.1.cu128.g72506c983/vllm-0.13.0%2Bfl.0.1.cu128.g72506c983-cp312-cp312-linux_x86_64.whl ; extra == "cuda-all"
+Requires-Dist: ray==2.49.1; extra == "cuda-all"
+Requires-Dist: gymnasium==1.2.3; extra == "cuda-all"
+Requires-Dist: dm-tree==0.1.9; extra == "cuda-all"
+Requires-Dist: websocket-client==1.8.0; extra == "cuda-all"
+Requires-Dist: websocket==0.2.1; extra == "cuda-all"
+Requires-Dist: websockets==15.0.1; extra == "cuda-all"
+Requires-Dist: msgpack==1.1.0; extra == "cuda-all"
+Provides-Extra: cuda
+Requires-Dist: hydra-core==1.3.2; extra == "cuda"
+Requires-Dist: wandb==0.19.1; extra == "cuda"
+Requires-Dist: numpy==1.26.4; extra == "cuda"
+Requires-Dist: scipy==1.14.1; extra == "cuda"
+Requires-Dist: pandas==2.2.3; extra == "cuda"
+Requires-Dist: matplotlib==3.9.4; extra == "cuda"
+Requires-Dist: tqdm==4.67.1; extra == "cuda"
+Requires-Dist: requests==2.32.3; extra == "cuda"
+Requires-Dist: aiohttp==3.11.11; extra == "cuda"
+Requires-Dist: pyyaml==6.0.3; extra == "cuda"
+Requires-Dist: regex==2025.10.22; extra == "cuda"
+Requires-Dist: typer>=0.9.0; extra == "cuda"
+Requires-Dist: torch==2.9.0; extra == "cuda"
+Requires-Dist: torchaudio==2.9.0; extra == "cuda"
+Requires-Dist: torchvision==0.24.0; extra == "cuda"
+Requires-Dist: datasets==4.5.0; extra == "cuda"
+Requires-Dist: diffusers==0.36.0; extra == "cuda"
+Requires-Dist: draccus==0.11.5; extra == "cuda"
+Requires-Dist: einops==0.8.2; extra == "cuda"
+Requires-Dist: epath==0.7; extra == "cuda"
+Requires-Dist: flask_cors==6.0.2; extra == "cuda"
+Requires-Dist: multi-storage-client==0.42.0; extra == "cuda"
+Requires-Dist: qwen_vl_utils==0.0.14; extra == "cuda"
+Requires-Dist: webdataset==1.0.2; extra == "cuda"
+Provides-Extra: cuda-hetero-train
+Requires-Dist: hydra-core==1.3.2; extra == "cuda-hetero-train"
+Requires-Dist: wandb==0.19.1; extra == "cuda-hetero-train"
+Requires-Dist: numpy==1.26.4; extra == "cuda-hetero-train"
+Requires-Dist: scipy==1.14.1; extra == "cuda-hetero-train"
+Requires-Dist: pandas==2.2.3; extra == "cuda-hetero-train"
+Requires-Dist: matplotlib==3.9.4; extra == "cuda-hetero-train"
+Requires-Dist: tqdm==4.67.1; extra == "cuda-hetero-train"
+Requires-Dist: requests==2.32.3; extra == "cuda-hetero-train"
+Requires-Dist: aiohttp==3.11.11; extra == "cuda-hetero-train"
+Requires-Dist: pyyaml==6.0.3; extra == "cuda-hetero-train"
+Requires-Dist: regex==2025.10.22; extra == "cuda-hetero-train"
+Requires-Dist: typer>=0.9.0; extra == "cuda-hetero-train"
+Requires-Dist: torch==2.9.0; extra == "cuda-hetero-train"
+Requires-Dist: torchaudio==2.9.0; extra == "cuda-hetero-train"
+Requires-Dist: torchvision==0.24.0; extra == "cuda-hetero-train"
+Requires-Dist: datasets==4.5.0; extra == "cuda-hetero-train"
+Requires-Dist: diffusers==0.36.0; extra == "cuda-hetero-train"
+Requires-Dist: draccus==0.11.5; extra == "cuda-hetero-train"
+Requires-Dist: einops==0.8.2; extra == "cuda-hetero-train"
+Requires-Dist: epath==0.7; extra == "cuda-hetero-train"
+Requires-Dist: flask_cors==6.0.2; extra == "cuda-hetero-train"
+Requires-Dist: multi-storage-client==0.42.0; extra == "cuda-hetero-train"
+Requires-Dist: qwen_vl_utils==0.0.14; extra == "cuda-hetero-train"
+Requires-Dist: webdataset==1.0.2; extra == "cuda-hetero-train"
+Requires-Dist: sentencepiece==0.2.1; extra == "cuda-hetero-train"
+Requires-Dist: transformers==4.57.6; extra == "cuda-hetero-train"
+Requires-Dist: tiktoken==0.12.0; extra == "cuda-hetero-train"
+Requires-Dist: megatron_core @ https://resource.flagos.net/repository/flagos-pypi-hosted/packages/megatron-core/0.16.0rc0/megatron_core-0.16.0rc0-cp312-cp312-linux_x86_64.whl ; extra == "cuda-hetero-train"
+Provides-Extra: cuda-inference
+Requires-Dist: hydra-core==1.3.2; extra == "cuda-inference"
+Requires-Dist: wandb==0.19.1; extra == "cuda-inference"
+Requires-Dist: numpy==1.26.4; extra == "cuda-inference"
+Requires-Dist: scipy==1.14.1; extra == "cuda-inference"
+Requires-Dist: pandas==2.2.3; extra == "cuda-inference"
+Requires-Dist: matplotlib==3.9.4; extra == "cuda-inference"
+Requires-Dist: tqdm==4.67.1; extra == "cuda-inference"
+Requires-Dist: requests==2.32.3; extra == "cuda-inference"
+Requires-Dist: aiohttp==3.11.11; extra == "cuda-inference"
+Requires-Dist: pyyaml==6.0.3; extra == "cuda-inference"
+Requires-Dist: regex==2025.10.22; extra == "cuda-inference"
+Requires-Dist: typer>=0.9.0; extra == "cuda-inference"
+Requires-Dist: torch==2.9.0; extra == "cuda-inference"
+Requires-Dist: torchaudio==2.9.0; extra == "cuda-inference"
+Requires-Dist: torchvision==0.24.0; extra == "cuda-inference"
+Requires-Dist: datasets==4.5.0; extra == "cuda-inference"
+Requires-Dist: diffusers==0.36.0; extra == "cuda-inference"
+Requires-Dist: draccus==0.11.5; extra == "cuda-inference"
+Requires-Dist: einops==0.8.2; extra == "cuda-inference"
+Requires-Dist: epath==0.7; extra == "cuda-inference"
+Requires-Dist: flask_cors==6.0.2; extra == "cuda-inference"
+Requires-Dist: multi-storage-client==0.42.0; extra == "cuda-inference"
+Requires-Dist: qwen_vl_utils==0.0.14; extra == "cuda-inference"
+Requires-Dist: webdataset==1.0.2; extra == "cuda-inference"
+Requires-Dist: vllm @ https://resource.flagos.net/repository/flagos-pypi-hosted/packages/vllm/0.13.0%2Bfl.0.1.cu128.g72506c983/vllm-0.13.0%2Bfl.0.1.cu128.g72506c983-cp312-cp312-linux_x86_64.whl ; extra == "cuda-inference"
+Requires-Dist: transformers==4.57.6; extra == "cuda-inference"
+Provides-Extra: cuda-rl
+Requires-Dist: hydra-core==1.3.2; extra == "cuda-rl"
+Requires-Dist: wandb==0.19.1; extra == "cuda-rl"
+Requires-Dist: numpy==1.26.4; extra == "cuda-rl"
+Requires-Dist: scipy==1.14.1; extra == "cuda-rl"
+Requires-Dist: pandas==2.2.3; extra == "cuda-rl"
+Requires-Dist: matplotlib==3.9.4; extra == "cuda-rl"
+Requires-Dist: tqdm==4.67.1; extra == "cuda-rl"
+Requires-Dist: requests==2.32.3; extra == "cuda-rl"
+Requires-Dist: aiohttp==3.11.11; extra == "cuda-rl"
+Requires-Dist: pyyaml==6.0.3; extra == "cuda-rl"
+Requires-Dist: regex==2025.10.22; extra == "cuda-rl"
+Requires-Dist: typer>=0.9.0; extra == "cuda-rl"
+Requires-Dist: torch==2.9.0; extra == "cuda-rl"
+Requires-Dist: torchaudio==2.9.0; extra == "cuda-rl"
+Requires-Dist: torchvision==0.24.0; extra == "cuda-rl"
+Requires-Dist: datasets==4.5.0; extra == "cuda-rl"
+Requires-Dist: diffusers==0.36.0; extra == "cuda-rl"
+Requires-Dist: draccus==0.11.5; extra == "cuda-rl"
+Requires-Dist: einops==0.8.2; extra == "cuda-rl"
+Requires-Dist: epath==0.7; extra == "cuda-rl"
+Requires-Dist: flask_cors==6.0.2; extra == "cuda-rl"
+Requires-Dist: multi-storage-client==0.42.0; extra == "cuda-rl"
+Requires-Dist: qwen_vl_utils==0.0.14; extra == "cuda-rl"
+Requires-Dist: webdataset==1.0.2; extra == "cuda-rl"
+Provides-Extra: cuda-serve
+Requires-Dist: hydra-core==1.3.2; extra == "cuda-serve"
+Requires-Dist: wandb==0.19.1; extra == "cuda-serve"
+Requires-Dist: numpy==1.26.4; extra == "cuda-serve"
+Requires-Dist: scipy==1.14.1; extra == "cuda-serve"
+Requires-Dist: pandas==2.2.3; extra == "cuda-serve"
+Requires-Dist: matplotlib==3.9.4; extra == "cuda-serve"
+Requires-Dist: tqdm==4.67.1; extra == "cuda-serve"
+Requires-Dist: requests==2.32.3; extra == "cuda-serve"
+Requires-Dist: aiohttp==3.11.11; extra == "cuda-serve"
+Requires-Dist: pyyaml==6.0.3; extra == "cuda-serve"
+Requires-Dist: regex==2025.10.22; extra == "cuda-serve"
+Requires-Dist: typer>=0.9.0; extra == "cuda-serve"
+Requires-Dist: torch==2.9.0; extra == "cuda-serve"
+Requires-Dist: torchaudio==2.9.0; extra == "cuda-serve"
+Requires-Dist: torchvision==0.24.0; extra == "cuda-serve"
+Requires-Dist: datasets==4.5.0; extra == "cuda-serve"
+Requires-Dist: diffusers==0.36.0; extra == "cuda-serve"
+Requires-Dist: draccus==0.11.5; extra == "cuda-serve"
+Requires-Dist: einops==0.8.2; extra == "cuda-serve"
+Requires-Dist: epath==0.7; extra == "cuda-serve"
+Requires-Dist: flask_cors==6.0.2; extra == "cuda-serve"
+Requires-Dist: multi-storage-client==0.42.0; extra == "cuda-serve"
+Requires-Dist: qwen_vl_utils==0.0.14; extra == "cuda-serve"
+Requires-Dist: webdataset==1.0.2; extra == "cuda-serve"
+Requires-Dist: vllm @ https://resource.flagos.net/repository/flagos-pypi-hosted/packages/vllm/0.13.0%2Bfl.0.1.cu128.g72506c983/vllm-0.13.0%2Bfl.0.1.cu128.g72506c983-cp312-cp312-linux_x86_64.whl ; extra == "cuda-serve"
+Requires-Dist: ray==2.49.1; extra == "cuda-serve"
+Requires-Dist: gymnasium==1.2.3; extra == "cuda-serve"
+Requires-Dist: dm-tree==0.1.9; extra == "cuda-serve"
+Requires-Dist: websocket-client==1.8.0; extra == "cuda-serve"
+Requires-Dist: websocket==0.2.1; extra == "cuda-serve"
+Requires-Dist: websockets==15.0.1; extra == "cuda-serve"
+Requires-Dist: msgpack==1.1.0; extra == "cuda-serve"
+Provides-Extra: cuda-train
+Requires-Dist: hydra-core==1.3.2; extra == "cuda-train"
+Requires-Dist: wandb==0.19.1; extra == "cuda-train"
+Requires-Dist: numpy==1.26.4; extra == "cuda-train"
+Requires-Dist: scipy==1.14.1; extra == "cuda-train"
+Requires-Dist: pandas==2.2.3; extra == "cuda-train"
+Requires-Dist: matplotlib==3.9.4; extra == "cuda-train"
+Requires-Dist: tqdm==4.67.1; extra == "cuda-train"
+Requires-Dist: requests==2.32.3; extra == "cuda-train"
+Requires-Dist: aiohttp==3.11.11; extra == "cuda-train"
+Requires-Dist: pyyaml==6.0.3; extra == "cuda-train"
+Requires-Dist: regex==2025.10.22; extra == "cuda-train"
+Requires-Dist: typer>=0.9.0; extra == "cuda-train"
+Requires-Dist: torch==2.9.0; extra == "cuda-train"
+Requires-Dist: torchaudio==2.9.0; extra == "cuda-train"
+Requires-Dist: torchvision==0.24.0; extra == "cuda-train"
+Requires-Dist: datasets==4.5.0; extra == "cuda-train"
+Requires-Dist: diffusers==0.36.0; extra == "cuda-train"
+Requires-Dist: draccus==0.11.5; extra == "cuda-train"
+Requires-Dist: einops==0.8.2; extra == "cuda-train"
+Requires-Dist: epath==0.7; extra == "cuda-train"
+Requires-Dist: flask_cors==6.0.2; extra == "cuda-train"
+Requires-Dist: multi-storage-client==0.42.0; extra == "cuda-train"
+Requires-Dist: qwen_vl_utils==0.0.14; extra == "cuda-train"
+Requires-Dist: webdataset==1.0.2; extra == "cuda-train"
+Requires-Dist: sentencepiece==0.2.1; extra == "cuda-train"
+Requires-Dist: transformers==4.57.6; extra == "cuda-train"
+Requires-Dist: tiktoken==0.12.0; extra == "cuda-train"
+Requires-Dist: megatron_core @ https://resource.flagos.net/repository/flagos-pypi-hosted/packages/megatron-core/0.16.0rc0/megatron_core-0.16.0rc0-cp312-cp312-linux_x86_64.whl ; extra == "cuda-train"
+Provides-Extra: hygon
+Requires-Dist: hydra-core==1.3.2; extra == "hygon"
+Requires-Dist: wandb==0.19.1; extra == "hygon"
+Requires-Dist: numpy==1.26.4; extra == "hygon"
+Requires-Dist: scipy==1.14.1; extra == "hygon"
+Requires-Dist: pandas==2.2.3; extra == "hygon"
+Requires-Dist: matplotlib==3.9.4; extra == "hygon"
+Requires-Dist: tqdm==4.67.1; extra == "hygon"
+Requires-Dist: requests==2.32.3; extra == "hygon"
+Requires-Dist: aiohttp==3.11.11; extra == "hygon"
+Requires-Dist: pyyaml==6.0.3; extra == "hygon"
+Requires-Dist: regex==2025.10.22; extra == "hygon"
+Requires-Dist: typer>=0.9.0; extra == "hygon"
+Requires-Dist: einops==0.8.2; extra == "hygon"
+Requires-Dist: importlib-metadata>=1.0; extra == "hygon"
+Requires-Dist: onnx; extra == "hygon"
+Requires-Dist: onnxscript==0.7.1; extra == "hygon"
+Requires-Dist: nvdlfw-inspect; extra == "hygon"
+Requires-Dist: packaging==26.0; extra == "hygon"
+Requires-Dist: pydantic; extra == "hygon"
+Requires-Dist: sqlalchemy==2.0.48; extra == "hygon"
+Provides-Extra: hygon-inference
+Requires-Dist: PyYAML==6.0.3; extra == "hygon-inference"
+Provides-Extra: hygon-train
+Requires-Dist: hydra-core==1.3.2; extra == "hygon-train"
+Requires-Dist: wandb==0.19.1; extra == "hygon-train"
+Requires-Dist: numpy==1.26.4; extra == "hygon-train"
+Requires-Dist: scipy==1.14.1; extra == "hygon-train"
+Requires-Dist: pandas==2.2.3; extra == "hygon-train"
+Requires-Dist: matplotlib==3.9.4; extra == "hygon-train"
+Requires-Dist: tqdm==4.67.1; extra == "hygon-train"
+Requires-Dist: requests==2.32.3; extra == "hygon-train"
+Requires-Dist: aiohttp==3.11.11; extra == "hygon-train"
+Requires-Dist: pyyaml==6.0.3; extra == "hygon-train"
+Requires-Dist: regex==2025.10.22; extra == "hygon-train"
+Requires-Dist: typer>=0.9.0; extra == "hygon-train"
+Requires-Dist: einops==0.8.2; extra == "hygon-train"
+Requires-Dist: importlib-metadata>=1.0; extra == "hygon-train"
+Requires-Dist: onnx; extra == "hygon-train"
+Requires-Dist: onnxscript==0.7.1; extra == "hygon-train"
+Requires-Dist: nvdlfw-inspect; extra == "hygon-train"
+Requires-Dist: packaging==26.0; extra == "hygon-train"
+Requires-Dist: pydantic; extra == "hygon-train"
+Requires-Dist: sqlalchemy==2.0.48; extra == "hygon-train"
+Requires-Dist: sentencepiece==0.2.1; extra == "hygon-train"
+Requires-Dist: tiktoken==0.12.0; extra == "hygon-train"
+Requires-Dist: transformers==4.57.6; extra == "hygon-train"
+Provides-Extra: kunlunxin-flagos-common
+Requires-Dist: hydra-core==1.3.2; extra == "kunlunxin-flagos-common"
+Requires-Dist: omegaconf==2.3.0; extra == "kunlunxin-flagos-common"
+Requires-Dist: wandb==0.19.1; extra == "kunlunxin-flagos-common"
+Requires-Dist: typer>=0.9.0; extra == "kunlunxin-flagos-common"
+Provides-Extra: kunlunxin
+Requires-Dist: hydra-core==1.3.2; extra == "kunlunxin"
+Requires-Dist: wandb==0.19.1; extra == "kunlunxin"
+Requires-Dist: numpy==1.26.4; extra == "kunlunxin"
+Requires-Dist: scipy==1.14.1; extra == "kunlunxin"
+Requires-Dist: pandas==2.2.3; extra == "kunlunxin"
+Requires-Dist: matplotlib==3.9.4; extra == "kunlunxin"
+Requires-Dist: tqdm==4.67.1; extra == "kunlunxin"
+Requires-Dist: requests==2.32.3; extra == "kunlunxin"
+Requires-Dist: aiohttp==3.11.11; extra == "kunlunxin"
+Requires-Dist: pyyaml==6.0.3; extra == "kunlunxin"
+Requires-Dist: regex==2025.10.22; extra == "kunlunxin"
+Requires-Dist: typer>=0.9.0; extra == "kunlunxin"
+Provides-Extra: kunlunxin-train
+Requires-Dist: sentencepiece==0.2.1; extra == "kunlunxin-train"
+Requires-Dist: transformers==4.57.6; extra == "kunlunxin-train"
+Requires-Dist: tiktoken==0.12.0; extra == "kunlunxin-train"
+Requires-Dist: hydra-core==1.3.2; extra == "kunlunxin-train"
+Requires-Dist: omegaconf==2.3.0; extra == "kunlunxin-train"
+Requires-Dist: wandb==0.19.1; extra == "kunlunxin-train"
+Requires-Dist: typer>=0.9.0; extra == "kunlunxin-train"
+Provides-Extra: metax
+Requires-Dist: hydra-core==1.3.2; extra == "metax"
+Requires-Dist: wandb==0.19.1; extra == "metax"
+Requires-Dist: numpy==1.26.4; extra == "metax"
+Requires-Dist: scipy==1.14.1; extra == "metax"
+Requires-Dist: pandas==2.2.3; extra == "metax"
+Requires-Dist: matplotlib==3.9.4; extra == "metax"
+Requires-Dist: tqdm==4.67.1; extra == "metax"
+Requires-Dist: requests==2.32.3; extra == "metax"
+Requires-Dist: aiohttp==3.11.11; extra == "metax"
+Requires-Dist: pyyaml==6.0.3; extra == "metax"
+Requires-Dist: regex==2025.10.22; extra == "metax"
+Requires-Dist: typer>=0.9.0; extra == "metax"
+Provides-Extra: metax-inference
+Requires-Dist: pyyaml<7,>=6.0; extra == "metax-inference"
+Requires-Dist: pandas==2.2.3; extra == "metax-inference"
+Requires-Dist: hydra-core==1.3.2; extra == "metax-inference"
+Requires-Dist: omegaconf==2.3.0; extra == "metax-inference"
+Requires-Dist: antlr4-python3-runtime==4.9.3; extra == "metax-inference"
+Provides-Extra: metax-serve
+Requires-Dist: pyyaml<7,>=6.0; extra == "metax-serve"
+Requires-Dist: pandas==2.2.3; extra == "metax-serve"
+Requires-Dist: hydra-core==1.3.2; extra == "metax-serve"
+Requires-Dist: omegaconf==2.3.0; extra == "metax-serve"
+Requires-Dist: antlr4-python3-runtime==4.9.3; extra == "metax-serve"
+Requires-Dist: httpx<1,>=0.27; extra == "metax-serve"
+Requires-Dist: requests<3,>=2.32; extra == "metax-serve"
+Provides-Extra: metax-train
+Requires-Dist: hydra-core==1.3.2; extra == "metax-train"
+Requires-Dist: wandb==0.19.1; extra == "metax-train"
+Requires-Dist: numpy==1.26.4; extra == "metax-train"
+Requires-Dist: scipy==1.14.1; extra == "metax-train"
+Requires-Dist: pandas==2.2.3; extra == "metax-train"
+Requires-Dist: matplotlib==3.9.4; extra == "metax-train"
+Requires-Dist: tqdm==4.67.1; extra == "metax-train"
+Requires-Dist: requests==2.32.3; extra == "metax-train"
+Requires-Dist: aiohttp==3.11.11; extra == "metax-train"
+Requires-Dist: pyyaml==6.0.3; extra == "metax-train"
+Requires-Dist: regex==2025.10.22; extra == "metax-train"
+Requires-Dist: typer>=0.9.0; extra == "metax-train"
+Requires-Dist: sentencepiece==0.2.1; extra == "metax-train"
+Requires-Dist: transformers==4.57.6; extra == "metax-train"
+Requires-Dist: tiktoken==0.12.0; extra == "metax-train"
+Provides-Extra: musa
+Requires-Dist: hydra-core==1.3.2; extra == "musa"
+Requires-Dist: wandb==0.19.1; extra == "musa"
+Requires-Dist: numpy==1.26.4; extra == "musa"
+Requires-Dist: scipy==1.14.1; extra == "musa"
+Requires-Dist: pandas==2.2.3; extra == "musa"
+Requires-Dist: matplotlib==3.9.4; extra == "musa"
+Requires-Dist: tqdm==4.67.1; extra == "musa"
+Requires-Dist: requests==2.32.3; extra == "musa"
+Requires-Dist: aiohttp==3.11.11; extra == "musa"
+Requires-Dist: pyyaml==6.0.3; extra == "musa"
+Requires-Dist: regex==2025.10.22; extra == "musa"
+Requires-Dist: typer>=0.9.0; extra == "musa"
+Requires-Dist: datasets==4.5.0; extra == "musa"
+Requires-Dist: diffusers==0.36.0; extra == "musa"
+Requires-Dist: draccus==0.11.5; extra == "musa"
+Requires-Dist: einops==0.8.2; extra == "musa"
+Requires-Dist: epath==0.7; extra == "musa"
+Requires-Dist: flask_cors==6.0.2; extra == "musa"
+Requires-Dist: multi-storage-client==0.42.0; extra == "musa"
+Requires-Dist: qwen_vl_utils==0.0.14; extra == "musa"
+Requires-Dist: webdataset==1.0.2; extra == "musa"
+Provides-Extra: musa-inference
+Requires-Dist: hydra-core==1.3.2; extra == "musa-inference"
+Requires-Dist: wandb==0.19.1; extra == "musa-inference"
+Requires-Dist: numpy==1.26.4; extra == "musa-inference"
+Requires-Dist: scipy==1.14.1; extra == "musa-inference"
+Requires-Dist: pandas==2.2.3; extra == "musa-inference"
+Requires-Dist: matplotlib==3.9.4; extra == "musa-inference"
+Requires-Dist: tqdm==4.67.1; extra == "musa-inference"
+Requires-Dist: requests==2.32.3; extra == "musa-inference"
+Requires-Dist: aiohttp==3.11.11; extra == "musa-inference"
+Requires-Dist: pyyaml==6.0.3; extra == "musa-inference"
+Requires-Dist: regex==2025.10.22; extra == "musa-inference"
+Requires-Dist: typer>=0.9.0; extra == "musa-inference"
+Requires-Dist: datasets==4.5.0; extra == "musa-inference"
+Requires-Dist: diffusers==0.36.0; extra == "musa-inference"
+Requires-Dist: draccus==0.11.5; extra == "musa-inference"
+Requires-Dist: einops==0.8.2; extra == "musa-inference"
+Requires-Dist: epath==0.7; extra == "musa-inference"
+Requires-Dist: flask_cors==6.0.2; extra == "musa-inference"
+Requires-Dist: multi-storage-client==0.42.0; extra == "musa-inference"
+Requires-Dist: qwen_vl_utils==0.0.14; extra == "musa-inference"
+Requires-Dist: webdataset==1.0.2; extra == "musa-inference"
+Requires-Dist: sentencepiece==0.2.1; extra == "musa-inference"
+Requires-Dist: transformers==4.57.6; extra == "musa-inference"
+Requires-Dist: tiktoken==0.12.0; extra == "musa-inference"
+Provides-Extra: musa-serve
+Requires-Dist: hydra-core==1.3.2; extra == "musa-serve"
+Requires-Dist: wandb==0.19.1; extra == "musa-serve"
+Requires-Dist: numpy==1.26.4; extra == "musa-serve"
+Requires-Dist: scipy==1.14.1; extra == "musa-serve"
+Requires-Dist: pandas==2.2.3; extra == "musa-serve"
+Requires-Dist: matplotlib==3.9.4; extra == "musa-serve"
+Requires-Dist: tqdm==4.67.1; extra == "musa-serve"
+Requires-Dist: requests==2.32.3; extra == "musa-serve"
+Requires-Dist: aiohttp==3.11.11; extra == "musa-serve"
+Requires-Dist: pyyaml==6.0.3; extra == "musa-serve"
+Requires-Dist: regex==2025.10.22; extra == "musa-serve"
+Requires-Dist: typer>=0.9.0; extra == "musa-serve"
+Requires-Dist: datasets==4.5.0; extra == "musa-serve"
+Requires-Dist: diffusers==0.36.0; extra == "musa-serve"
+Requires-Dist: draccus==0.11.5; extra == "musa-serve"
+Requires-Dist: einops==0.8.2; extra == "musa-serve"
+Requires-Dist: epath==0.7; extra == "musa-serve"
+Requires-Dist: flask_cors==6.0.2; extra == "musa-serve"
+Requires-Dist: multi-storage-client==0.42.0; extra == "musa-serve"
+Requires-Dist: qwen_vl_utils==0.0.14; extra == "musa-serve"
+Requires-Dist: webdataset==1.0.2; extra == "musa-serve"
+Requires-Dist: sentencepiece==0.2.1; extra == "musa-serve"
+Requires-Dist: transformers==4.57.6; extra == "musa-serve"
+Requires-Dist: tiktoken==0.12.0; extra == "musa-serve"
+Provides-Extra: musa-train
+Requires-Dist: hydra-core==1.3.2; extra == "musa-train"
+Requires-Dist: wandb==0.19.1; extra == "musa-train"
+Requires-Dist: numpy==1.26.4; extra == "musa-train"
+Requires-Dist: scipy==1.14.1; extra == "musa-train"
+Requires-Dist: pandas==2.2.3; extra == "musa-train"
+Requires-Dist: matplotlib==3.9.4; extra == "musa-train"
+Requires-Dist: tqdm==4.67.1; extra == "musa-train"
+Requires-Dist: requests==2.32.3; extra == "musa-train"
+Requires-Dist: aiohttp==3.11.11; extra == "musa-train"
+Requires-Dist: pyyaml==6.0.3; extra == "musa-train"
+Requires-Dist: regex==2025.10.22; extra == "musa-train"
+Requires-Dist: typer>=0.9.0; extra == "musa-train"
+Requires-Dist: datasets==4.5.0; extra == "musa-train"
+Requires-Dist: diffusers==0.36.0; extra == "musa-train"
+Requires-Dist: draccus==0.11.5; extra == "musa-train"
+Requires-Dist: einops==0.8.2; extra == "musa-train"
+Requires-Dist: epath==0.7; extra == "musa-train"
+Requires-Dist: flask_cors==6.0.2; extra == "musa-train"
+Requires-Dist: multi-storage-client==0.42.0; extra == "musa-train"
+Requires-Dist: qwen_vl_utils==0.0.14; extra == "musa-train"
+Requires-Dist: webdataset==1.0.2; extra == "musa-train"
+Requires-Dist: sentencepiece==0.2.1; extra == "musa-train"
+Requires-Dist: transformers==4.57.6; extra == "musa-train"
+Requires-Dist: tiktoken==0.12.0; extra == "musa-train"
+Requires-Dist: peft==0.18.1; extra == "musa-train"
+Provides-Extra: dev
+Requires-Dist: setuptools==77.0.3; extra == "dev"
+Requires-Dist: wheel==0.45.1; extra == "dev"
+Requires-Dist: pip==25.0.1; extra == "dev"
+Requires-Dist: pybind11==3.0.1; extra == "dev"
+Requires-Dist: pre-commit==4.2.0; extra == "dev"
+Requires-Dist: black==24.4.2; extra == "dev"
+Requires-Dist: isort==5.13.2; extra == "dev"
+Requires-Dist: flake8==7.1.0; extra == "dev"
+Requires-Dist: pylint==3.2.6; extra == "dev"
+Requires-Dist: coverage==7.6.10; extra == "dev"
+Requires-Dist: pytest==8.3.5; extra == "dev"
+Requires-Dist: pytest-asyncio==0.25.3; extra == "dev"
+Requires-Dist: pytest-cov==6.0.0; extra == "dev"
+Requires-Dist: pytest-mock==3.14.0; extra == "dev"
+Requires-Dist: pytest-random-order==1.1.1; extra == "dev"
+Dynamic: license-file
+Dynamic: provides-extra
+
+[<img width="2182" height="602" alt="github+banner-20260130" src=".github/assets/banner-20260130.png" />](https://flagos.io/)
+
+[[中文版](./README_cn.md)|English]
+
+<div align="right">
+  <a href="https://www.linkedin.com/company/flagos-community" target="_blank">
+    <img src="./docs/assets/Linkedin.png" alt="LinkIn" width="32" height="32" />
+  </a>
+
+  <a href="https://www.youtube.com/@FlagOS_Official" target="_blank">
+    <img src="./docs/assets/youtube.png" alt="YouTube" width="32" height="32" />
+  </a>
+
+  <a href="https://x.com/FlagOS_Official" target="_blank">
+    <img src="./docs/assets/x.png" alt="X" width="32" height="32" />
+  </a>
+
+  <a href="https://www.facebook.com/flagosglobalcommunity" target="_blank">
+    <img src="./docs/assets/Facebook.png" alt="Facebook" width="32" height="32" />
+  </a>
+
+  <a href="https://discord.com/invite/ubqGuFMTNE" target="_blank">
+    <img src="./docs/assets/discord.png" alt="Discord" width="32" height="32" />
+  </a>
+</div>
+
+<!--Begin Announcements.-->
+
+> [!IMPORTANT]
+>
+> **2026/03 UPDATE**
+>
+> [v1.0.0](https://github.com/flagos-ai/FlagScale/releases/tag/v1.0.0) is now officially released as the first stable version.
+> The codebase has been significantly refactored since [v1.0.0-alpha.0](https://github.com/flagos-ai/FlagScale/releases/tag/v1.0.0-alpha.0).
+> The hardware-specific (multi-chip) support has been moved into plugin repositories such as
+> [TransformerEngine-FL](https://github.com/flagos-ai/TransformerEngine-FL) and
+> [vllm-plugin-FL](https://github.com/flagos-ai/vllm-plugin-FL).
+> These plugins build on top of [FlagOS](https://flagos.io/), a unified open-source AI system software stack.
+> If you are using or upgrading from a version earlier than *v1.0.0-alpha.0*, please use the
+> [`main-legacy`](https://github.com/flagos-ai/FlagScale/tree/main-legacy) branch.
+> It will continue to receive critical bug fixes and minor updates for a period of time.
+<!--End Announcements.-->
+
+
+## Overview
+
+FlagScale is a core component of [FlagOS](https://flagos.io/) — a unified, open-source AI system software stack that fosters an open technology ecosystem by seamlessly integrating various models, systems, and chips. Following the principle of "develop once, migrate across various chips", FlagOS aims to unlock the full computational potential of hardware, break down barriers between different chip software stacks, and effectively reduce migration costs.To get started, see the [Getting Started Guide](./docs/getting-started.md).
+
+As the central toolkit of this ecosystem, FlagScale provides a unified interface covering the complete lifecycle of large language models, multimodal models, and embodied AI models. It integrates multiple open-source backend engines under a single configuration and CLI interface, supporting key workflows including model training, reinforcement learning, and inference — with consistent operation across diverse chip vendors.
+
+Within the FlagOS ecosystem, FlagScale works together with several other components:
+- FlagOS Plugins – hardware-adapted integrations of upstream AI frameworks
+- [FlagCX](https://docs.flagos.io/projects/FlagCX/en/latest/) – a scalable and adaptive cross-chip communication library
+- [FlagOS-Robo related](https://github.com/flagos-ai/FlagOS-Robo) – infrastructure for embodied AI workloads
+
+FlagOS plugin projects are built on top of widely used upstream open-source frameworks and extend them to support multiple AI chips. These plugins provide hardware compatibility and runtime integration for training, reinforcement learning, and inference.
+
+The following table lists the mapping between FlagOS plugins and their corresponding upstream projects.
+
+| Task | FlagOS Plugin Projects | Upstream Projects |
+|------|----------------------|-------------------|
+| Training | [Megatron-LM-FL](https://github.com/flagos-ai/Megatron-LM-FL) <br> [TransformerEngine-FL](https://github.com/flagos-ai/TransformerEngine-FL) | [Megatron-LM](https://github.com/NVIDIA/Megatron-LM) <br> [TransformerEngine](https://github.com/NVIDIA/TransformerEngine) |
+| Reinforcement Learning | [VeRL-FL](https://github.com/flagos-ai/verl-FL) | [veRL](https://github.com/verl-project/verl) |
+| Serve / Inference | [vllm-plugin-FL](https://github.com/flagos-ai/vllm-plugin-FL) | [vllm](https://github.com/vllm-project/vllm) |
+
+
+## Resources
+
+- [Project change log](./docs/CHANGELOG.md)
+- [Getting started](./docs/getting-started.md)
+- [FlagOS-Robo related](./docs/robo.md)
+
+## Support List
+
+### Training
+
+| Model                                                    | Example config File                        |
+| -------------------------------------------------------- | ------------------------------------------------------------- |
+| [DeepSeek-V3](https://huggingface.co/deepseek-ai)        | [16b_a3b.yaml](examples/deepseek_v3/conf/train/16b_a3b.yaml)  |
+| [Qwen2/2.5/3](https://huggingface.co/Qwen)               | [235b_a22b.yaml](examples/qwen3/conf/train/235b_a22b.yaml)    |
+| [Qwen2.5-VL](https://huggingface.co/Qwen)                | [7b.yaml](examples/qwen2_5_vl/conf/train/7b.yaml)             |
+| [QwQ](https://huggingface.co/Qwen)                       | [32b.yaml](examples/qwq/conf/train/32b.yaml)                  |
+| [LLaMA2](https://huggingface.co/meta-llama)              | [7b.yaml](examples/llama2/conf/train/7b.yaml)                 |
+| [LLaMA3/3.1](https://huggingface.co/meta-llama)          | [70b.yaml](examples/llama3/conf/train/70b.yaml)               |
+| [LLaVA-OneVision](https://huggingface.co/lmms-lab)       | [7b.yaml](examples/llava_onevision/conf/train/7b.yaml)        |
+| [LLaVA1.5](https://huggingface.co/llava-hf)              | [7b.yaml](examples/llava1_5/conf/train/7b.yaml)               |
+| [Mixtral](https://huggingface.co/mistralai)              | [8x7b.yaml](examples/mixtral/conf/train/8x7b.yaml)            |
+| [RWKV](https://huggingface.co/RWKV)                      | [7b.yaml](examples/rwkv/conf/train/7b.yaml)                   |
+| [Aquila](https://huggingface.co/BAAI)                    | [7b.yaml](examples/aquila/conf/train/7b.yaml)                 |
+| ... | ... |
+
+### Serve/Inference
+
+| Model                                                    | Example config File                                                   |
+| -------------------------------------------------------- | --------------------------------------------------------------------- |
+| [DeepSeek-V3](https://huggingface.co/deepseek-ai)        | [671b.yaml](examples/deepseek_v3/conf/serve/671b.yaml)                |
+| [DeepSeek-R1](https://huggingface.co/deepseek-ai)        | [671b.yaml](examples/deepseek_r1/conf/serve/671b.yaml)                |
+| [Qwen2.5](https://huggingface.co/Qwen)                   | [72b.yaml](examples/qwen2_5/conf/serve/72b.yaml)                      |
+| [Qwen3](https://huggingface.co/Qwen)                     | [8b.yaml](examples/qwen3/conf/serve/8b.yaml)                          |
+| [Qwen2.5-VL](https://huggingface.co/Qwen)                | [32b_instruct.yaml](examples/qwen2_5_vl/conf/serve/32b_instruct.yaml) |
+| [Qwen3-Omni](https://huggingface.co/Qwen)                | [30b.yaml](examples/qwen3_o/conf/serve/30b.yaml)                      |
+| [QwQ](https://huggingface.co/Qwen)                       | [32b.yaml](examples/qwq/conf/serve/32b.yaml)                          |
+| [Grok2](https://huggingface.co/xai-org)                  | [270b.yaml](examples/grok2/conf/serve/270b.yaml)                      |
+| [Kimi-K2](https://huggingface.co/MoonshotAI)             | [1t.yaml](examples/kimi_k2/conf/serve/1t.yaml)                        |
+| ... | ... |
+
+## Contribution
+
+**join our WeChat Group**
+
+<p align=center>
+<img width="204" height="180" alt="开源小助手" src="https://github.com/user-attachments/assets/566bd17d-c43f-4af7-9a29-7a6c7e610ffa" />
+</p>
+
+## License
+
+This project is licensed under the [Apache License (Version 2.0)](./LICENSE).
+This project also contains other third-party components under other open-source licenses.

@@ -1,0 +1,42 @@
+# Copyright 2026 FlagOS Contributors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+defaults:
+  - _self_
+  - serve: 72b_nodes_envs
+experiment:
+  exp_name: qwen2.5_72b
+  exp_dir: outputs/${experiment.exp_name}
+  task:
+    type: serve
+    backend: vllm
+  runner:
+    hostfile: examples/qwen2_5/conf/hostfile_nodes_envs.txt
+    docker: ds    # Modify to suit your Docker environment
+    ssh_port: 22
+    deploy:
+      use_fs_serve: false
+  envs:
+    CUDA_DEVICE_MAX_CONNECTIONS: 1
+    nodes_envs:
+      x.x.x.x:  # Maintain consistency with the node ip information in the hostfile_nodes_envs.txt file
+        CUDA_VISIBLE_DEVICES: 0,1,2,3
+      x.x.x.x:  # Maintain consistency with the node ip information in the hostfile_nodes_envs.txt file
+        CUDA_VISIBLE_DEVICES: 4,5,6,7
+  cmds:
+    before_start: source /root/miniconda3/bin/activate flagscale-inference && export GLOO_SOCKET_IFNAME=bond0 # replace "bond0" with your own network card
+action: run
+hydra:
+  run:
+    dir: ${experiment.exp_dir}/hydra

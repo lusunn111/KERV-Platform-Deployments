@@ -1,0 +1,174 @@
+# Copyright 2026 FlagOS Contributors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import os
+
+from omegaconf import DictConfig, OmegaConf
+
+from flagscale.runner.backend.backend_base import BackendBase
+from flagscale.runner.utils import (
+    flatten_dict_to_args_verl,
+    get_pkg_dir,
+    logger,
+    parse_hostfile,
+    setup_exp_dir,
+    setup_logging_dirs,
+)
+
+
+def _get_args_verl(config: DictConfig):
+    assert config.experiment.task.backend == "verl", "This function only supports verl backend."
+
+    # Convert the DictConfig to a regular dictionary
+    config_dict = OmegaConf.to_container(config, resolve=True)
+    config_dict = config_dict["rl"]
+
+    new_config_dict = {}
+    new_config_dict.update(config_dict)
+
+    # Flatten the dictionary to a list of arguments
+    args = flatten_dict_to_args_verl(new_config_dict, pre_str="")
+
+    return args
+
+
+def _update_config_rl(config: DictConfig):
+    exp_dir = setup_exp_dir(config)
+
+    OmegaConf.set_struct(config, False)
+    if config.get("system", None) is None:
+        config.system = DictConfig({})
+
+    if config.system.get("logging", None) is None:
+        config.system.logging = DictConfig({})
+
+    setup_logging_dirs(config.system.logging, exp_dir)
+
+    OmegaConf.set_struct(config, True)
+
+
+class VerlBackend(BackendBase):
+    def __init__(self, config: DictConfig):
+        super().__init__(config)
+        self.task_type = getattr(self.config.experiment.task, "type", None)
+        assert self.task_type == "rl", f"Unsupported task type: {self.task_type}"
+        self._prepare()
+
+    def _prepare(self):
+        _update_config_rl(self.config)
+        self.user_args = _get_args_verl(self.config)
+        self.user_envs = self.config.experiment.get("envs", {})
+        self.user_script = self.config.experiment.task.entrypoint
+        self.resources = parse_hostfile(self.config.experiment.runner.get("hostfile", None))
+        logger.info("\n************** configuration **************")
+        logger.info(f"\n{OmegaConf.to_yaml(self.config)}")
+
+    def generate_run_script(self, config, host, node_rank, cmd, background=False, resources=None):
+        system_config = config.system
+        logging_config = config.system.logging
+
+        no_shared_fs = config.experiment.runner.get("no_shared_fs", False)
+        if no_shared_fs:
+            host_output_file = os.path.join(logging_config.log_dir, "host.output")
+        else:
+            host_output_file = os.path.join(
+                logging_config.log_dir, f"host_{node_rank}_{host}.output"
+            )
+        host_run_script_file = os.path.join(
+            logging_config.scripts_dir, f"host_{node_rank}_{host}_run.sh"
+        )
+        host_pid_file = os.path.join(logging_config.pids_dir, f"host_{node_rank}_{host}.pid")
+
+        os.makedirs(logging_config.scripts_dir, exist_ok=True)
+
+        pkg_dir = get_pkg_dir()
+        cmds_config = config.experiment.get("cmds", None)
+        if cmds_config:
+            before_start = cmds_config.get("before_start", "")
+        else:
+            before_start = ""
+        with open(host_run_script_file, "w") as f:
+            f.write("#!/bin/bash\n\n")
+            f.write(f"{before_start}\n")
+            if resources is not None:
+                available_ip = next(iter(resources.keys()))
+                ray_port = config.experiment.runner.get("ray_port", 6379)
+                ray_dashboard_port = config.experiment.runner.get("ray_dashboard_port", 8265)
+                for node_rank, (host, resource_info) in enumerate(resources.items()):
+                    if node_rank == 0:
+                        f.write(
+                            f"ray start --head --port={ray_port} --dashboard-host=0.0.0.0 --dashboard-port={ray_dashboard_port} --num-gpus={resource_info['slots']}\n"
+                        )
+                    else:
+                        f.write(
+                            f'ssh -f -n {host} "{before_start};ray start --address={available_ip}:{ray_port} --num-gpus={resource_info["slots"]}"\n'
+                        )
+
+            f.write(f"mkdir -p {system_config.logging.log_dir}\n")
+            f.write(f"mkdir -p {system_config.logging.pids_dir}\n")
+            f.write("\n")
+            f.write(f"cd {pkg_dir}\n")
+            f.write("\n")
+            f.write("export PYTHONPATH=${PYTHONPATH}\n")
+            f.write("\n")
+            f.write(f'cmd="{cmd}"\n')
+            f.write("\n")
+            if background:
+                f.write(
+                    f'nohup bash -c "$cmd; sync" >> {host_output_file} 2>&1 & echo $! > {host_pid_file}\n'
+                )
+            else:
+                f.write("set -o pipefail\n")
+                f.write(f'bash -c "$cmd; sync" 2>&1 | tee -a {host_output_file}\n')
+            f.write("\n")
+            f.flush()
+            os.fsync(f.fileno())
+        os.chmod(host_run_script_file, 0o755)
+
+        return host_run_script_file
+
+    def generate_stop_script(self, config, host, node_rank):
+        if getattr(config, "rl", None):
+            logging_config = config.system.logging
+        else:
+            logging_config = config.inference.system.logging
+
+        host_stop_script_file = os.path.join(
+            logging_config.scripts_dir, f"host_{node_rank}_{host}_stop.sh"
+        )
+
+        host_pid_file = os.path.join(logging_config.pids_dir, f"host_{node_rank}_{host}.pid")
+
+        os.makedirs(logging_config.scripts_dir, exist_ok=True)
+
+        cmds_config = config.experiment.get("cmds", None)
+        if cmds_config:
+            after_stop = cmds_config.get("after_stop", "")
+        else:
+            after_stop = ""
+        with open(host_stop_script_file, "w") as f:
+            f.write("#!/bin/bash\n\n")
+            f.write("if [ -f " + host_pid_file + " ]; then\n")
+            f.write("    pid=$(cat " + host_pid_file + ")\n")
+            f.write("    pkill -P $pid\n")
+            f.write("else\n")
+            # TODO: This is a temporary fix. We need to find a better way to stop the job.
+            f.write("    pkill -f 'torchrun'\n")
+            f.write("fi\n")
+            f.write(f"{after_stop}\n")
+            f.flush()
+            os.fsync(f.fileno())
+        os.chmod(host_stop_script_file, 0o755)
+
+        return host_stop_script_file

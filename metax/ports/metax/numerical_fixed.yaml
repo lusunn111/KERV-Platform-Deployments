@@ -1,0 +1,10 @@
+# Native vendor FP32 mean retained; original BF16 multiplication boundary.
+# Scalar inverse instructions verified against native on all audited real layers.
+experiment:
+  exp_name: kerv_metax_numerical_fixed
+  envs:
+    KERV_METAX_V2: rms_native_mean,rope,vision_graph
+    KERV_METAX_QUANT: none
+inference:
+  runtime:
+    run_id_note: metax-numerical-native-moments

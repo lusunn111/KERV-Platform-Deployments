@@ -1,0 +1,7 @@
+# Independent compression candidate; lossless weight storage, selected v2 math.
+experiment:
+  envs:
+    KERV_METAX_QUANT: bf16_lossless_selective
+inference:
+  runtime:
+    run_id_note: metax-v2-bf16-lossless-mlp94

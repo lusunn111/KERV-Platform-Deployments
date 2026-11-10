@@ -1,0 +1,36 @@
+diff --git a/flagscale/runner/backend/backend_vllm.py b/flagscale/runner/backend/backend_vllm.py
+index 7376fb5..70f167c 100644
+--- a/flagscale/runner/backend/backend_vllm.py
++++ b/flagscale/runner/backend/backend_vllm.py
+@@ -420,11 +420,11 @@ class VllmBackend(BackendBase):
+                 f.write("\n")
+                 if background:
+                     f.write(
+-                        f'nohup bash -c "$cmd; sync" >> {host_output_file} 2>&1 & echo $! > {host_pid_file}\n'
++                        f'nohup bash -c "$cmd; status=\\$?; sync; exit \\$status" >> {host_output_file} 2>&1 & echo $! > {host_pid_file}\n'
+                     )
+                 else:
+                     f.write("set -o pipefail\n")
+-                    f.write(f'bash -c "$cmd; sync" 2>&1 | tee -a {host_output_file}\n')
++                    f.write(f'bash -c "$cmd; status=\\$?; sync; exit \\$status" 2>&1 | tee -a {host_output_file}\n')
+                 f.write("\n")
+                 f.flush()
+                 os.fsync(f.fileno())
+diff --git a/flagscale/runner/runner_inference.py b/flagscale/runner/runner_inference.py
+index e7c97e9..ae48920 100644
+--- a/flagscale/runner/runner_inference.py
++++ b/flagscale/runner/runner_inference.py
+@@ -113,11 +113,11 @@ def _generate_run_script_inference(config, host, node_rank, cmd, background=Fals
+         f.write("\n")
+         if background:
+             f.write(
+-                f'nohup bash -c "$cmd; sync" >> {host_output_file} 2>&1 & echo $! > {host_pid_file}\n'
++                f'nohup bash -c "$cmd; status=\\$?; sync; exit \\$status" >> {host_output_file} 2>&1 & echo $! > {host_pid_file}\n'
+             )
+         else:
+             f.write("set -o pipefail\n")
+-            f.write(f'bash -c "$cmd; sync" 2>&1 | tee -a {host_output_file}\n')
++            f.write(f'bash -c "$cmd; status=\\$?; sync; exit \\$status" 2>&1 | tee -a {host_output_file}\n')
+         f.write("\n")
+         f.flush()
+         os.fsync(f.fileno())

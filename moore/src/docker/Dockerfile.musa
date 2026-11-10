@@ -1,0 +1,20 @@
+FROM registry.mthreads.com/mcconline/musa-pytorch-release-public:rc5.1.0-v2.9.1-S5000-py310
+
+# The host may use MUSA as Docker's default runtime even during builds.
+# Unpack OSMesa into its own prefix to avoid replacing mounted driver libraries.
+RUN mkdir -p /opt/kerv-render /tmp/kerv-render-debs \
+    && cd /tmp/kerv-render-debs \
+    && apt-get update -qq \
+    && apt-get download libosmesa6 libllvm15 libglapi-mesa libglvnd0 libglx0 libgl1 libdrm2 \
+    && for package in *.deb; do dpkg-deb -x "$package" /opt/kerv-render; done \
+    && printf '%s\n' /opt/kerv-render/usr/lib/x86_64-linux-gnu > /etc/ld.so.conf.d/kerv-render.conf \
+    && ldconfig \
+    && apt-get clean
+
+ENV PYOPENGL_PLATFORM=osmesa MUJOCO_GL=osmesa TF_CPP_MIN_LOG_LEVEL=2 \
+    KERV_DEVICE_BACKEND=musa LIBERO_CONFIG_PATH=/workspace/.libero \
+    PYTHONPATH=/workspace/src:/workspace/src/openvla:/workspace/src/runtime_opt:/workspace/third_party/FlagScale \
+    LD_LIBRARY_PATH=/opt/kerv-render/usr/lib/x86_64-linux-gnu:/usr/local/musa/lib:/usr/lib:/usr/lib/x86_64-linux-gnu:/usr/local/openmpi/lib \
+    OMP_NUM_THREADS=8 TF_NUM_INTRAOP_THREADS=4 TF_NUM_INTEROP_THREADS=2
+WORKDIR /workspace
+CMD ["sleep", "infinity"]

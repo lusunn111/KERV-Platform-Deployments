@@ -1,0 +1,60 @@
+# B1: original KERV algorithm, BF16, no device-specific optimized kernels.
+experiment:
+  exp_name: kerv_libero_goal_metax_native
+  envs:
+    PYTHONPATH: ${oc.env:KERV_RUNTIME_OPT_ROOT}:${oc.env:KERV_RELEASE_ROOT}:${oc.env:KERV_RELEASE_ROOT}/openvla:${oc.env:FLAGSCALE_ROOT}:${oc.env:KERV_LIBERO_ROOT}:/workspace
+    KERV_DEVICE_BACKEND: metax
+    KERV_ACTION_PROTOCOL: seven
+    MACA_VISIBLE_DEVICES: ${oc.env:MACA_VISIBLE_DEVICES,0}
+    KERV_LIBERO_ROOT: ${oc.env:KERV_LIBERO_ROOT}
+    KERV_ACCEPTANCE_DIR: ${oc.env:KERV_ACCEPTANCE_DIR}
+    KERV_ACCEPTANCE_RUN_ID: ${oc.env:KERV_ACCEPTANCE_RUN_ID}
+    KERV_LIBERO_INITIAL_STATE_OFFSET: ${oc.env:KERV_LIBERO_INITIAL_STATE_OFFSET,0}
+    OMP_NUM_THREADS: "16"
+    TF_NUM_INTRAOP_THREADS: "1"
+    TF_NUM_INTEROP_THREADS: "1"
+    HF_HUB_OFFLINE: "1"
+inference:
+  runtime:
+    seed: 7
+    run_id_note: metax-native-bf16-seven
+    max_planning_steps: 220
+    fail_on_error: true
+    action_log_path: ${oc.env:KERV_OUTPUT_ROOT}/actions.jsonl
+    runtime_stats_path: ${oc.env:KERV_OUTPUT_ROOT}/runtime_stats.jsonl
+    embodied_ops:
+      enabled: true
+      backend: native
+      record: false
+    linear_fusion:
+      enabled: false
+    rope_fusion:
+      enabled: false
+    tree_builder:
+      enabled: false
+      static_runtime: false
+      verify_max_paths: 0
+      node_buckets: ""
+      operatorized: false
+      fused_control_transfer: false
+      compile_verifier: false
+      persistent_runtime: false
+      resident_kv_cache: false
+      fixed_workspace_layout: false
+      prewarm_graph_buckets: false
+      persistent_input_buffers: false
+      static_tree_attention: "off"
+      kalman_batch: false
+    cuda_warmup_seconds: 0.0
+    timing_backend: cpu
+    system_optimization:
+      enabled: false
+      prompt_cuda_graph: "off"
+      draft_cuda_graph: "off"
+      commit_draft_cuda_graph: "off"
+      commit_draft_stream_overlap: "off"
+      pinned_image_buffer: false
+      async_image_transfer: false
+      task_level_graph_warmup: false
+      allocator_backend: native
+      episode_device_warmup: "off"

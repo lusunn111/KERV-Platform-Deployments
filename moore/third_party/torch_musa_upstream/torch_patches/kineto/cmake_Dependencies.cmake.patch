@@ -1,0 +1,18 @@
+diff --git a/cmake/Dependencies.cmake b/cmake/Dependencies.cmake
+index dac0d1f41c3..585963d19e3 100644
+--- a/cmake/Dependencies.cmake
++++ b/cmake/Dependencies.cmake
+@@ -1657,6 +1657,13 @@ if(USE_KINETO)
+   message(STATUS "  KINETO_BUILD_TESTS = ${KINETO_BUILD_TESTS}")
+   message(STATUS "  KINETO_LIBRARY_TYPE = ${KINETO_LIBRARY_TYPE}")
+ 
++  list(APPEND CMAKE_MODULE_PATH "/usr/local/musa/cmake")
++  find_package(MUSAToolkit REQUIRED)
++  list(POP_BACK CMAKE_MODULE_PATH)
++  get_target_property(MUPTI_INCLUDE_DIR MUSA::mupti INTERFACE_INCLUDE_DIRECTORIES)
++  get_target_property(MUSA_mupti_LIBRARY MUSA::mupti IMPORTED_LOCATION)
++  get_filename_component(MUSA_SOURCE_DIR ${MUPTI_INCLUDE_DIR} DIRECTORY)
++
+   if(NOT LIBKINETO_NOROCTRACER)
+     if("$ENV{ROCM_SOURCE_DIR}" STREQUAL "")
+       set(ENV{ROCM_SOURCE_DIR} "/opt/rocm")

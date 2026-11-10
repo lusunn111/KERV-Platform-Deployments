@@ -1,0 +1,23 @@
+# B2 candidate: exact topology, portable C++ tree, batched commits/reused buffers.
+experiment:
+  exp_name: kerv_libero_goal_metax_optimized_candidate
+inference:
+  runtime:
+    run_id_note: metax-optimized-candidate-bf16-seven
+    tree_builder:
+      enabled: true
+      static_runtime: true
+      verify_max_paths: 0
+      operatorized: true
+      draft_tree_operatorized: true
+      kalman_batch: true
+      kv_commit_batched: true
+      fused_control_transfer: true
+    system_optimization:
+      enabled: true
+      fixed_draft_input_workspace: false
+      persistent_control_buffer: true
+      persistent_decode_workspace: true
+      prompt_token_cache: true
+      persistent_draft_kv_cache: true
+      process_level_warmup: false

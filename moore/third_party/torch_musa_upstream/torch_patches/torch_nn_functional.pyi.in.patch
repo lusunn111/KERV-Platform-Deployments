@@ -1,0 +1,25 @@
+diff --git a/torch/nn/functional.pyi.in b/torch/nn/functional.pyi.in
+index d0b6444..a4be4d4 100644
+--- a/torch/nn/functional.pyi.in
++++ b/torch/nn/functional.pyi.in
+@@ -852,6 +852,20 @@ def upsample(
+ 
+ __all__ += ["upsample"]
+ 
++def rope(
++    input: Tensor,
++    freq_cis: Tensor,
++    rotary_interleaved: bool,
++    batch_first: bool,
++    multi_latent_attention: bool,
++) -> Tensor: ...
++
++__all__ += ["rope"]
++
++def swish_glu(input: Tensor) -> Tensor: ...
++
++__all__ += ["swish_glu"]
++
+ ${imported_hints}
+ 
+ ${dispatched_hints}

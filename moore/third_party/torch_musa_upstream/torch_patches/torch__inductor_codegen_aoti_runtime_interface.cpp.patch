@@ -1,0 +1,13 @@
+diff --git a/torch/_inductor/codegen/aoti_runtime/interface.cpp b/torch/_inductor/codegen/aoti_runtime/interface.cpp
+index e3931e8..6fa52c0 100644
+--- a/torch/_inductor/codegen/aoti_runtime/interface.cpp
++++ b/torch/_inductor/codegen/aoti_runtime/interface.cpp
+@@ -57,7 +57,7 @@ AOTIRuntimeError AOTInductorModelContainerCreate(
+       return AOTInductorModelContainerCreateWithDevice(
+         container_handle,
+         num_models,
+-        is_cpu ? "cpu" : "cuda",
++        is_cpu ? "cpu" : "musa",
+         cubin_dir);
+ }
+ 

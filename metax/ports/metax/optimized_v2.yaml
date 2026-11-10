@@ -1,0 +1,9 @@
+# Pilot-selected v2. BF16 rounding boundaries retained; FP32 reduction order can
+# change actions. 5/6 quality pilot passed; do not describe as trajectory-exact.
+experiment:
+  exp_name: kerv_metax_v2
+  envs:
+    KERV_METAX_V2: rms,rope,vision_graph
+inference:
+  runtime:
+    run_id_note: metax-v2-bf16

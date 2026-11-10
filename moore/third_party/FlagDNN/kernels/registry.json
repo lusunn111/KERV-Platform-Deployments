@@ -1,0 +1,446 @@
+{
+  "schema_version": 1,
+  "ownership": "common",
+  "kernels": [
+    {
+      "operation": "causal_conv1d",
+      "provider": "common_triton",
+      "source": "causal_convolution.py",
+      "functions": [
+        "causal_conv1d_kernel"
+      ]
+    },
+    {
+      "operation": "resample",
+      "provider": "common_triton",
+      "source": "resample.py",
+      "functions": [
+        "resample_kernel"
+      ]
+    },
+    {
+      "operation": "rng",
+      "provider": "common_triton",
+      "source": "random.py",
+      "functions": [
+        "rng_kernel"
+      ]
+    },
+    {
+      "operations": [
+        "rope",
+        "rope_backward"
+      ],
+      "provider": "common_triton",
+      "source": "position_embedding.py",
+      "functions": [
+        "rope_kernel"
+      ]
+    },
+    {
+      "operation": "bn_finalize",
+      "provider": "common_triton",
+      "source": "statistics.py",
+      "functions": [
+        "bn_finalize_kernel"
+      ]
+    },
+    {
+      "operations": [
+        "instancenorm",
+        "adalayernorm",
+        "instancenorm_backward",
+        "adalayernorm_backward",
+        "layernorm_backward",
+        "rmsnorm_backward",
+        "batchnorm_backward"
+      ],
+      "provider": "common_triton",
+      "source": "normalization_extended.py",
+      "functions": [
+        "extended_normalization_forward",
+        "extended_normalization_backward",
+        "compact_normalization_forward",
+        "compact_batchnorm_backward"
+      ]
+    },
+    {
+      "operation": "genstats",
+      "provider": "common_triton",
+      "source": "statistics.py",
+      "functions": [
+        "genstats_kernel"
+      ]
+    },
+    {
+      "operations": [
+        "concatenate",
+        "gen_index"
+      ],
+      "provider": "common_triton",
+      "source": "index.py",
+      "functions": [
+        "gen_index_kernel",
+        "concatenate_copy_kernel"
+      ]
+    },
+    {
+      "operations": [
+        "sigmoid_backward",
+        "relu_backward",
+        "tanh_backward",
+        "elu_backward",
+        "gelu_backward",
+        "softplus_backward",
+        "swish_backward",
+        "gelu_approx_tanh_backward"
+      ],
+      "provider": "common_triton",
+      "source": "activation_backward.py",
+      "functions": [
+        "activation_backward_contiguous_kernel",
+        "activation_backward_strided_kernel"
+      ],
+      "tuning": {
+        "source": "common.yaml",
+        "table": "binary",
+        "key": "n_elements",
+        "strategy": "align32",
+        "warmup": 5,
+        "repetitions": 10
+      }
+    },
+    {
+      "operations": [
+        "add",
+        "sub",
+        "mul",
+        "div",
+        "min",
+        "max",
+        "mod",
+        "pow",
+        "cmp_eq",
+        "cmp_neq",
+        "cmp_gt",
+        "cmp_ge",
+        "cmp_lt",
+        "cmp_le",
+        "logical_and",
+        "logical_or"
+      ],
+      "provider": "common_triton",
+      "source": "binary.py",
+      "functions": [
+        "binary_contiguous_kernel",
+        "binary_strided_kernel"
+      ],
+      "tuning": {
+        "source": "common.yaml",
+        "table": "binary",
+        "key": "n_elements",
+        "strategy": "align32",
+        "warmup": 5,
+        "repetitions": 10
+      }
+    },
+    {
+      "operations": [
+        "relu",
+        "abs",
+        "ceil",
+        "cos",
+        "erf",
+        "exp",
+        "floor",
+        "identity",
+        "log",
+        "neg",
+        "reciprocal",
+        "rsqrt",
+        "sin",
+        "sqrt",
+        "tan",
+        "logical_not",
+        "sigmoid",
+        "tanh",
+        "elu",
+        "gelu",
+        "softplus",
+        "swish",
+        "gelu_approx_tanh"
+      ],
+      "provider": "common_triton",
+      "source": "unary.py",
+      "functions": [
+        "unary_pointwise_contiguous_kernel",
+        "unary_pointwise_strided_kernel"
+      ],
+      "tuning": {
+        "source": "common.yaml",
+        "table": "relu",
+        "key": "n_elements",
+        "strategy": "align32",
+        "warmup": 5,
+        "repetitions": 10
+      }
+    },
+    {
+      "operation": "binary_select",
+      "provider": "common_triton",
+      "source": "ternary.py",
+      "functions": [
+        "binary_select_tensor_kernel",
+        "binary_select_strided_kernel"
+      ],
+      "tuning": {
+        "source": "common.yaml",
+        "table": "binary",
+        "key": "n_elements",
+        "strategy": "align32",
+        "warmup": 5,
+        "repetitions": 10
+      }
+    },
+    {
+      "operations": [
+        "reduction_sum",
+        "reduction_avg",
+        "reduction_mul"
+      ],
+      "provider": "common_triton",
+      "source": "reduction.py",
+      "functions": [
+        "reduction_2d_kernel",
+        "reduction_3d_kernel",
+        "reduction_strided_kernel"
+      ],
+      "tuning": {
+        "source": "common.yaml",
+        "table": "reduction",
+        "key": "output_elements",
+        "strategy": "reduction",
+        "warmup": 5,
+        "repetitions": 10
+      }
+    },
+    {
+      "operations": [
+        "reshape",
+        "transpose",
+        "slice"
+      ],
+      "provider": "common_triton",
+      "source": "layout.py",
+      "functions": [
+        "layout_copy_kernel",
+        "matrix_transpose_kernel"
+      ],
+      "tuning": {
+        "source": "common.yaml",
+        "table": "binary",
+        "key": "n_elements",
+        "strategy": "align32",
+        "warmup": 5,
+        "repetitions": 10
+      }
+    },
+    {
+      "operation": "matmul",
+      "provider": "common_triton",
+      "source": "matmul.py",
+      "functions": [
+        "matmul_strided_kernel"
+      ],
+      "tuning": {
+        "source": "common.yaml",
+        "table": "matmul",
+        "key": "m",
+        "strategy": "matmul",
+        "warmup": 5,
+        "repetitions": 10
+      }
+    },
+    {
+      "operation": "sdpa",
+      "provider": "common_triton",
+      "source": "attention.py",
+      "functions": [
+        "_sdpa_fwd_kernel"
+      ],
+      "tuning": {
+        "source": "common.yaml",
+        "table": "sdpa",
+        "key": "sequence_q",
+        "strategy": "attention",
+        "warmup": 5,
+        "repetitions": 10
+      }
+    },
+    {
+      "operation": "sdpa_backward",
+      "provider": "common_triton",
+      "source": "attention.py",
+      "functions": [
+        "_zero_contiguous_kernel",
+        "_sdpa_bwd_dq_dbias_kernel",
+        "_sdpa_bwd_dkdv_kernel",
+        "_sdpa_bwd_dk_kernel",
+        "_sdpa_bwd_dv_kernel"
+      ],
+      "tuning": {
+        "source": "common.yaml",
+        "table": "sdpa_backward_dq",
+        "key": "sequence_q",
+        "strategy": "attention",
+        "warmup": 5,
+        "repetitions": 10
+      }
+    },
+    {
+      "operation": "sdpa_fp8",
+      "provider": "common_triton",
+      "source": "attention.py",
+      "functions": [
+        "_zero_sdpa_fp8_fwd_amax_kernel",
+        "_sdpa_fp8_fwd_kernel"
+      ],
+      "tuning": {
+        "source": "common.yaml",
+        "table": "sdpa_fp8",
+        "key": "sequence_q",
+        "strategy": "attention",
+        "warmup": 5,
+        "repetitions": 10
+      }
+    },
+    {
+      "operation": "sdpa_fp8_backward",
+      "provider": "common_triton",
+      "source": "attention.py",
+      "functions": [
+        "_zero_sdpa_fp8_bwd_amax_kernel",
+        "_sdpa_fp8_bwd_dq_kernel",
+        "_sdpa_fp8_bwd_dkdv_kernel"
+      ],
+      "tuning": {
+        "source": "common.yaml",
+        "table": "sdpa_fp8_backward_dq",
+        "key": "sequence_q",
+        "strategy": "attention",
+        "warmup": 5,
+        "repetitions": 10
+      }
+    },
+    {
+      "operations": [
+        "conv2d_fprop",
+        "convolution_fprop",
+        "convolution_dgrad",
+        "convolution_wgrad"
+      ],
+      "provider": "common_triton",
+      "source": "convolution.py",
+      "functions": [
+        "conv1d_gemm_kernel",
+        "conv2d_spatial_nchw_kernel",
+        "conv3d_spatial_ncdhw_m_kernel",
+        "conv_dgrad_nd_kernel",
+        "conv_wgrad_nd_kernel"
+      ],
+      "tuning": {
+        "source": "common.yaml",
+        "table": "conv2d_spatial",
+        "key": "n_outputs",
+        "strategy": "convolution",
+        "warmup": 5,
+        "repetitions": 10
+      }
+    },
+    {
+      "operation": "layernorm",
+      "provider": "common_triton",
+      "source": "normalization.py",
+      "functions": [
+        "layer_norm_kernel"
+      ],
+      "tuning": {
+        "source": "common.yaml",
+        "table": "layer_norm",
+        "key": "normalized_elements",
+        "strategy": "fixed_grid",
+        "warmup": 5,
+        "repetitions": 10
+      }
+    },
+    {
+      "operation": "rmsnorm",
+      "provider": "common_triton",
+      "source": "normalization.py",
+      "functions": [
+        "rms_norm_kernel"
+      ],
+      "tuning": {
+        "source": "common.yaml",
+        "table": "rms_norm",
+        "key": "normalized_elements",
+        "strategy": "fixed_grid",
+        "warmup": 5,
+        "repetitions": 10
+      }
+    },
+    {
+      "operation": "batchnorm",
+      "provider": "common_triton",
+      "source": "normalization.py",
+      "functions": [
+        "batch_norm_nchw_kernel",
+        "batch_norm_kernel"
+      ],
+      "tuning": {
+        "source": "common.yaml",
+        "table": "batch_norm",
+        "key": "channels",
+        "strategy": "fixed_grid",
+        "warmup": 5,
+        "repetitions": 10
+      }
+    },
+    {
+      "operation": "batchnorm_inference",
+      "provider": "common_triton",
+      "source": "normalization.py",
+      "functions": [
+        "batch_norm_inference_nchw_kernel",
+        "batch_norm_inference_kernel"
+      ],
+      "tuning": {
+        "source": "common.yaml",
+        "table": "batch_norm",
+        "key": "n_elements",
+        "strategy": "align32",
+        "warmup": 5,
+        "repetitions": 10
+      }
+    },
+    {
+      "operation": "matmul_fp8",
+      "provider": "common_triton",
+      "source": "fp8_matmul.py",
+      "functions": [
+        "fp8_matmul_kernel"
+      ]
+    },
+    {
+      "operations": [
+        "moe_grouped_matmul",
+        "moe_grouped_matmul_bwd"
+      ],
+      "provider": "common_triton",
+      "source": "moe_matmul.py",
+      "functions": [
+        "moe_matmul_kernel"
+      ]
+    }
+  ]
+}

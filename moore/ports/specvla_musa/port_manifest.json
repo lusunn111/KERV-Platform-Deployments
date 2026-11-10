@@ -1,0 +1,29 @@
+{
+  "upstream": "https://github.com/PineTreeWss/SpecVLA",
+  "revision": "56ef2985e25c7903d2759254efb754327fb975f7",
+  "changes": [
+    {
+      "file": "openvla/prismatic/__init__.py",
+      "original_sha256": "244d4c09ae7b191ae233484aed3a3dfb281bd1eb7af4e24392f047d0d42c6ef9",
+      "ported_sha256": "70e4d56ebbeced079786f86edf840eb6fcafd91a6c4a4d8d7ed008a9fbf401f8"
+    },
+    {
+      "file": "openvla/experiments/robot/openvla_utils.py",
+      "original_sha256": "5fb273ce36c6ff4aa1e2aa90596f43dfb5fa4b7a8bdf6fccd80e5cd2f7692b2d",
+      "ported_sha256": "23151b937d57f6ad69c0b5c959b588d19b133163bf56850d8dd0fe775e8b77d7"
+    },
+    {
+      "file": "openvla/prismatic/extern/hf/modeling_speculation.py",
+      "original_sha256": "3920a00345d1ac501b9e01d0ae4f7a2bb9a0b5a6d37c36c8c15c25f7969abd44",
+      "ported_sha256": "717d8cef718d196afc6056b9b9948a752a235a4eef9e684677aea6d4bd281c88"
+    }
+  ],
+  "added_device_helper_sha256": "f0be5c71b32dedd01ea52823cbf022f15eeb296412602cdd07e2af5f0b92c079",
+  "baseline_identity": "Real upstream SpecVLA eagenerate/cnets/utils; fixed relaxed threshold 9, original tree defaults; no KERV Kalman/dynamic acceptance/runtime fusion",
+  "validation_status": "NOT_VALIDATED until import, fixed-input and real runs are archived",
+  "limits": [
+    "MUSA BF16/eager port, not an A100 reference experiment",
+    "Redundant drafter embedding replaced by shared verifier embedding as upstream already does after loading",
+    "Extra control read for audit can affect timing; no official acceptance claim"
+  ]
+}

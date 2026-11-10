@@ -1,0 +1,24 @@
+diff --git a/torch/multiprocessing/reductions.py b/torch/multiprocessing/reductions.py
+index 4e45393..cfd68a2 100644
+--- a/torch/multiprocessing/reductions.py
++++ b/torch/multiprocessing/reductions.py
+@@ -341,7 +341,7 @@ def reduce_tensor(tensor):
+ 
+     storage = tensor._typed_storage()
+ 
+-    if storage._untyped_storage.device.type == "cuda":
++    if storage._untyped_storage.device.type in ["cuda", torch._C._get_privateuse1_backend_name()]:
+         (
+             device,
+             handle,
+@@ -599,6 +599,10 @@ def reduce_storage(storage):
+         raise RuntimeError(
+             "Cannot pickle CUDA storage; try pickling a CUDA tensor instead"
+         )
++    elif storage.is_musa:
++        raise RuntimeError(
++            "Cannot pickle MUSA storage; try pickling a MUSA tensor instead"
++        )
+     elif storage.device.type == "meta":
+         raise RuntimeError(
+             "Cannot pickle meta storage; try pickling a meta tensor instead"

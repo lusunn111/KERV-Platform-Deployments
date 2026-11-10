@@ -1,0 +1,21 @@
+{
+  "models": [
+    {
+      "id": "M1",
+      "name": "OpenVLA 7B finetuned LIBERO-Goal",
+      "repository": "openvla/openvla-7b-finetuned-libero-goal",
+      "revision": "fa5ae1e7509348889295bba8e08621d8b55e9baf",
+      "weights": "checkpoints/openvla-libero-goal",
+      "drafter": "checkpoints/kerv-drafter",
+      "action_dimension": 7,
+      "action_protocol": "OpenVLA libero_goal unnormalization; binary inverted gripper for LIBERO",
+      "status": "AVAILABLE"
+    },
+    {
+      "id": "M2",
+      "name": null,
+      "status": "BLOCKED",
+      "reason": "No identified BAAI-developed VLA weights/interface provided; outside this Moore-only self-test"
+    }
+  ]
+}

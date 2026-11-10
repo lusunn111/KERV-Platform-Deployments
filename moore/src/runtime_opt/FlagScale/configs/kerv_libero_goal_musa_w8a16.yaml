@@ -1,0 +1,20 @@
+defaults:
+  - kerv_libero_goal_musa_optimized
+  - _self_
+
+experiment:
+  exp_name: kerv_libero_goal_musa_w8a16
+
+inference:
+  runtime:
+    run_id_note: kerv-musa-w8a16-mlp-g128
+    w8a16:
+      enabled: true
+      backend: musa
+      groups: verify_mlp
+      group_size: 128
+      strict: true
+      # This profile targets storage. Speed is measured, not assumed.
+      min_speedup: 0.0
+    linear_fusion:
+      enabled: false

@@ -1,0 +1,12 @@
+diff --git a/torchgen/native_function_generation.py b/torchgen/native_function_generation.py
+index a44efab..f278cab 100644
+--- a/torchgen/native_function_generation.py
++++ b/torchgen/native_function_generation.py
+@@ -85,6 +85,7 @@ FUNCTIONAL_OPS_THAT_CANNOT_GET_AN_OUT_VARIANT = [
+     "_print",  # no return
+     "_sink_tokens",  # no return
+     "_nested_get_ragged_idx",  # returns an int
++    "cross_entropy_loss_2d_choice",  # returns an int
+ ]
+ 
+ INPLACE_OPS_THAT_DONT_GET_GROUPED_PROPERLY = [

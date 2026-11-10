@@ -1,0 +1,43 @@
+# Copyright 2026 FlagOS Contributors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+defaults:
+  - rl: 7b
+  - _self_
+
+experiment:
+  exp_name: qwen2-7b
+  exp_dir: ./outputs
+  task:
+    type: rl
+    backend: verl
+    entrypoint: verl.trainer.main_ppo
+  cmds:
+    before_start: source /root/miniconda3/bin/activate verl
+  runner:
+    nnodes: 1
+    nproc_per_node: 8
+    hostfile: null
+    ray_port: 6379
+    ray_dashboard_port: 8265
+    runtime_env: /path/to/verl-FL/verl/trainer/runtime_env.yaml
+  envs:
+    CUDA_VISIBLE_DEVICES: 0,1,2,3,4,5,6,7
+    TORCH_DEVICE_BACKEND_AUTOLOAD: 0
+
+action: run
+
+hydra:
+  run:
+    dir: ${experiment.exp_dir}/hydra

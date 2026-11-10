@@ -1,0 +1,408 @@
+#!/bin/bash
+set -e
+
+# Environment variables used when building torch_musa
+#
+#   TORCH_MUSA_ARCH_LIST
+#     specify which MUSA architectures to build for.
+#     ie 'TORCH_MUSA_ARCH_LIST="21;22"'
+#
+
+CUR_DIR=$(
+  cd $(dirname $0)
+  pwd
+)
+TORCH_MUSA_HOME=$CUR_DIR
+PYTORCH_PATH=${PYTORCH_REPO_PATH:-$(realpath ${TORCH_MUSA_HOME}/../pytorch)}
+TORCH_PATCHES_DIR=${TORCH_MUSA_HOME}/torch_patches/
+
+BUILD_WHEEL=0
+DEBUG_MODE=0
+ASAN_MODE=0
+BUILD_TORCH=1
+BUILD_TORCH_MUSA=1
+USE_KINETO=${USE_KINETO:-1}
+ONLY_PATCH=0
+CLEAN=0
+COMPILE_FP64=1
+PYTORCH_TAG=v2.11.0
+PYTORCH_BUILD_VERSION=2.11.0
+PYTORCH_BUILD_NUMBER=2 # This is used for official torch distribution.
+USE_MCCL=${USE_MCCL:-1}
+PIP_VERBOSE_ARGS=()
+VERBOSE_ENV_VALUE=0
+
+usage() {
+  echo -e "\033[1;32mThis script is used to build PyTorch and Torch_MUSA. \033[0m"
+  echo -e "\033[1;32mParameters usage: \033[0m"
+  echo -e "\033[32m    --all         : Means building both PyTorch and Torch_MUSA. \033[0m"
+  echo -e "\033[32m    --fp64        : Means compiling fp64 data type in kernels using mcc in Torch_MUSA. \033[0m"
+  echo -e "\033[32m    -m/--musa     : Means building Torch_MUSA only. \033[0m"
+  echo -e "\033[32m    -t/--torch    : Means building original PyTorch only. \033[0m"
+  echo -e "\033[32m    -d/--debug    : Means building in debug mode. \033[0m"
+  echo -e "\033[32m    -a/--asan     : Means building in asan mode. \033[0m"
+  echo -e "\033[32m    -c/--clean    : Means cleaning everything that has been built. \033[0m"
+  echo -e "\033[32m    -p/--patch    : Means applying patches only. \033[0m"
+  echo -e "\033[32m    -w/--wheel    : Means generating wheel after building. \033[0m"
+  echo -e "\033[32m    -v/--verbose  : Enable verbose build and pip output. \033[0m"
+  echo -e "\033[32m    -n/--no_kineto : Disable kineto. \033[0m"
+  echo -e "\033[32m    -h/--help     : Help information. \033[0m"
+}
+
+# parse paremters
+parameters=$(getopt -o +mtdacpvwnh --long all,fp64,musa,torch,debug,asan,clean,wheel,verbose,no_kineto,patch,help, -n "$0" -- "$@")
+[ $? -ne 0 ] && {
+  echo -e "\033[34mTry '$0 --help' for more information. \033[0m"
+  exit 1
+}
+
+eval set -- "$parameters"
+
+while true; do
+  case "$1" in
+  --all)
+    BUILD_TORCH=1
+    BUILD_TORCH_MUSA=1
+    shift
+    ;;
+  --fp64)
+    COMPILE_FP64=1
+    shift
+    ;;
+  -m | --musa)
+    BUILD_TORCH_MUSA=1
+    BUILD_TORCH=0
+    shift
+    ;;
+  -t | --torch)
+    BUILD_TORCH_MUSA=0
+    BUILD_TORCH=1
+    shift
+    ;;
+  -d | --debug)
+    DEBUG_MODE=1
+    shift
+    ;;
+  -a | --asan)
+    ASAN_MODE=1
+    shift
+    ;;
+  -c | --clean)
+    CLEAN=1
+    shift
+    ;;
+  -w | --wheel)
+    BUILD_WHEEL=1
+    shift
+    ;;
+  -v | --verbose)
+    PIP_VERBOSE_ARGS=(-v)
+    VERBOSE_ENV_VALUE=1
+    shift
+    ;;
+  -n | --no_kineto)
+    USE_KINETO=0
+    shift
+    ;;
+  -p | --patch)
+    ONLY_PATCH=1
+    shift
+    ;;
+  -h | --help)
+    usage
+    exit
+    ;;
+  --)
+    shift
+    break
+    ;;
+  *)
+    usage
+    exit 1
+    ;;
+  esac
+done
+
+cmd_check(){
+  cmd="$1"
+  if command -v ${cmd} >/dev/null 2>&1; then
+    echo "- cmd exist  : ${cmd}"
+  else
+    echo -e "\033[34m- cmd does not exist, automatically install \"${cmd}\"\033[0m"
+    pip install -r ${TORCH_MUSA_HOME}/requirements.txt # extra requirements
+  fi
+}
+
+precommit_install(){
+  cmd_check "pre-commit"
+  root_dir="$(dirname "$(realpath "${BASH_SOURCE:-$0}" )")"
+  if [ ! -f ${root_dir}/.git/hooks/pre-commit ]; then
+    pushd $root_dir
+    pre-commit install
+    popd
+  fi
+}
+
+precommit_install
+
+clone_pytorch() {
+  # if PyTorch repo exists already, we skip gitting clone PyTorch
+  if [ -d ${PYTORCH_PATH} ]; then
+    echo -e "\033[34mPyTorch repo path is ${PYTORCH_PATH} ...\033[0m"
+    pushd ${PYTORCH_PATH}
+    git checkout ${PYTORCH_TAG}
+    echo -e "\033[34m Switch the Pytorch repo to tag ${PYTORCH_TAG} \033[0m"
+    popd
+  else
+    ABSOLUTE_PATH=$(cd $(dirname ${PYTORCH_PATH}) && pwd)"/pytorch"
+    echo -e "\033[34mUsing default pytorch repo path: ${ABSOLUTE_PATH}\033[0m"
+    if [ ! -d "${PYTORCH_PATH}" ]; then
+      pushd ${TORCH_MUSA_HOME}/..
+      echo -e "\033[34mPyTorch repo does not exist, now git clone PyTorch to ${ABSOLUTE_PATH} ...\033[0m"
+      git clone -b ${PYTORCH_TAG} https://github.com/pytorch/pytorch.git --depth=1
+      popd
+    fi
+  fi
+  # to make sure submodules are fetched
+  pushd ${PYTORCH_PATH}
+  update_submodule
+}
+
+apply_torch_patches() {
+  # apply patches into PyTorch
+  echo -e "\033[34mApplying patches to ${PYTORCH_PATH} ...\033[0m"
+  # clean PyTorch before patching
+  if [ -d "$PYTORCH_PATH/.git" ]; then
+    echo -e "\033[34mStash and checkout the PyTorch environment before patching. \033[0m"
+    pushd $PYTORCH_PATH
+    git stash -u
+    git checkout ${PYTORCH_TAG}
+    popd
+  fi
+
+  for file in $(find ${TORCH_PATCHES_DIR} -type f -not -path "*/kineto/*" -print); do
+    if [ "${file##*.}"x = "patch"x ]; then
+      echo -e "\033[34mapplying patch: $file \033[0m"
+      pushd $PYTORCH_PATH
+      git apply --check $file
+      git apply $file
+      popd
+    fi
+  done
+
+  if [ ${USE_KINETO} -eq 1 ]; then
+    for file in $(find ${TORCH_PATCHES_DIR}/kineto -type f -print); do
+      if [ "${file##*.}"x = "patch"x ]; then
+        echo -e "\033[34mapplying patch: $file \033[0m"
+        pushd $PYTORCH_PATH
+        git apply --check $file
+        git apply $file
+        popd
+      fi
+    done
+  fi
+}
+
+update_kineto_source() {
+  echo -e "\033[34mRemove Kineto in pytorch...\033[0m"
+  pushd ${PYTORCH_PATH}
+  # remove the current kineto
+  rm -rf ${PYTORCH_PATH}/third_party/kineto
+  git submodule update --init --recursive --depth 1
+  # remove the official kineto
+  rm -rf ${PYTORCH_PATH}/third_party/kineto
+  popd
+  echo -e "\033[34mMoving Updating kineto and moving to pytorch...\033[0m"
+  pushd ${TORCH_MUSA_HOME}
+  git submodule update --init --depth 1
+  if [ -d /home/kineto ]; then
+    cp -r /home/kineto/libkineto/third_party ./third_party/kineto/libkineto/
+  else
+    git submodule update --init --recursive --depth 1
+  fi
+  echo "gitdir: $TORCH_MUSA_HOME/.git/modules/third_party/kineto" > ./third_party/kineto/.git
+  cp -r third_party/kineto ${PYTORCH_PATH}/third_party/
+}
+
+update_submodule() {
+  if [ ${USE_KINETO} -eq 1 ]; then
+    update_kineto_source
+  else
+    pushd ${PYTORCH_PATH}
+    git submodule update --init --recursive --depth 1
+    popd
+  fi
+}
+
+build_pytorch() {
+  echo -e "\033[34mBuilding PyTorch...\033[0m"
+  status=0
+  if [ ! -d ${PYTORCH_PATH} ]; then
+    echo -e "\033[34mAn error occurred while building PyTorch, the specified PyTorch repo [${PYTORCH_PATH}] does not exist \033[0m"
+    exit 1
+  fi
+
+  pushd ${PYTORCH_PATH}
+  pip install -r requirements.txt
+  pip install -r ${TORCH_MUSA_HOME}/requirements.txt # extra requirements
+  if [ $BUILD_WHEEL -eq 1 ]; then
+    rm -rf dist
+    pip uninstall torch -y
+    PYTORCH_BUILD_NUMBER=${PYTORCH_BUILD_NUMBER} \
+      PYTORCH_BUILD_VERSION=${PYTORCH_BUILD_VERSION} \
+      DEBUG=${DEBUG_MODE} \
+      USE_ASAN=${ASAN_MODE} \
+      USE_KINETO=${USE_KINETO} \
+      USE_NCCL=0 \
+      USE_MPI=0 \
+      BUILD_TEST=0 python -m pip wheel . --wheel-dir ./dist --no-build-isolation
+    status=$?
+    rm -rf torch.egg-info
+    pip install dist/*.whl
+  else
+    PYTORCH_BUILD_NUMBER=${PYTORCH_BUILD_NUMBER} \
+      PYTORCH_BUILD_VERSION=${PYTORCH_BUILD_VERSION} \
+      DEBUG=${DEBUG_MODE} \
+      USE_ASAN=${ASAN_MODE} \
+      USE_KINETO=${USE_KINETO} \
+      USE_NCCL=0 \
+      USE_MPI=0 \
+      BUILD_TEST=0 python -m pip install --no-build-isolation "${PIP_VERBOSE_ARGS[@]}" -e .
+    status=$?
+  fi
+  popd
+  return $status
+}
+
+clean_pytorch() {
+  echo -e "\033[34mCleaning PyTorch...\033[0m"
+  pushd ${PYTORCH_PATH}
+  python setup.py clean
+  popd
+}
+
+clean_torch_musa() {
+  echo -e "\033[34mCleaning torch_musa...\033[0m"
+  pushd ${TORCH_MUSA_HOME}
+  TORCH_DEVICE_BACKEND_AUTOLOAD=0 \
+  PYTORCH_REPO_PATH=${PYTORCH_PATH} python setup.py clean
+  rm -rf $CUR_DIR/build
+  popd
+}
+
+ccache_build_log() {
+  { [ "${VERBOSE_ENV_VALUE}" -eq 1 ] && command -v ccache >/dev/null 2>&1; } || return 0
+  local statslog="${CUR_DIR}/build/ccache.statslog"
+  case "$1" in
+  begin)
+    mkdir -p "$(dirname "${statslog}")"
+    : >"${statslog}"
+    export CCACHE_STATSLOG="${statslog}"
+    ;;
+  report)
+    if [ -s "${statslog}" ]; then
+      echo -e "\033[34m[ccache] summary:\033[0m"
+      CCACHE_STATSLOG="${statslog}" ccache --show-log-stats 2>/dev/null || true
+      echo -e "\033[34m[ccache] per-file log: ${statslog}\033[0m"
+    else
+      echo -e "\033[33m[ccache] no compilation this build (incremental, nothing rebuilt)\033[0m"
+    fi
+    ;;
+  esac
+}
+
+build_torch_musa() {
+  echo -e "\033[34mBuilding torch_musa...\033[0m"
+  status=0
+  pushd ${TORCH_MUSA_HOME}
+  pip install -r requirements.txt
+
+  ccache_build_log begin
+
+  if [ $BUILD_WHEEL -eq 1 ]; then
+    rm -rf dist
+    TORCH_DEVICE_BACKEND_AUTOLOAD=0 \
+    PYTORCH_REPO_PATH=${PYTORCH_PATH} \
+      DEBUG=${DEBUG_MODE} \
+      USE_ASAN=${ASAN_MODE} \
+      ENABLE_COMPILE_FP64=${COMPILE_FP64}  \
+      USE_MCCL=${USE_MCCL} \
+      USE_KINETO=${USE_KINETO} \
+      VERBOSE=${VERBOSE_ENV_VALUE} \
+      python -m pip wheel . --wheel-dir ./dist --no-build-isolation "${PIP_VERBOSE_ARGS[@]}"
+    status=$?
+    rm -rf torch_musa.egg-info
+    pip install dist/*.whl
+  else
+    TORCH_DEVICE_BACKEND_AUTOLOAD=0 \
+    PYTORCH_REPO_PATH=${PYTORCH_PATH} \
+      DEBUG=${DEBUG_MODE} \
+      USE_ASAN=${ASAN_MODE} \
+      ENABLE_COMPILE_FP64=${COMPILE_FP64} \
+      USE_MCCL=${USE_MCCL} \
+      USE_KINETO=${USE_KINETO} \
+      VERBOSE=${VERBOSE_ENV_VALUE} \
+      python -m pip install --no-build-isolation "${PIP_VERBOSE_ARGS[@]}" -e .
+    status=$?
+  fi
+
+  ccache_build_log report
+
+  if [ $status -ne 0 ]; then
+    exit $status
+  fi
+
+  # scan and output ops list for each building
+  bash ${CUR_DIR}/scripts/scan_ops.sh
+  popd
+
+  return $status
+}
+
+main() {
+
+  if [[ ${CLEAN} -eq 1 ]] && [[ ${BUILD_TORCH} -ne 1 ]] && [[ ${BUILD_TORCH_MUSA} -ne 1 ]]; then
+    clean_pytorch
+    clean_torch_musa
+    exit 0
+  fi
+  if [ ${ONLY_PATCH} -eq 1 ]; then
+    apply_torch_patches
+    exit 0
+  fi
+  if [ ${BUILD_TORCH} -eq 1 ]; then
+    clone_pytorch
+    if [ ${CLEAN} -eq 1 ]; then
+      clean_pytorch
+    fi
+    apply_torch_patches
+    build_pytorch
+    build_pytorch_status=$?
+    if [ $build_pytorch_status -ne 0 ]; then
+      clean_and_build="bash build.sh -c  # Clean PyTorch/torch_musa and build"
+      echo -e "\033[31mBuilding PyTorch failed, please try cleaning first before building: \033[0m"
+      echo -e "\033[32m$clean_and_build \033[0m"
+      exit 1
+    fi
+  fi
+  if [ ${BUILD_TORCH_MUSA} -eq 1 ]; then
+    if [ ${CLEAN} -eq 1 ]; then
+      clean_torch_musa
+    fi
+    build_torch_musa
+    build_torch_musa_status=$?
+    if [ $build_torch_musa_status -ne 0 ]; then
+      echo -e "\033[31mPlease try the following commands once building torch_musa is failed: \033[0m"
+      echo -e "\033[32mClean PyTorch/torch_musa and build: \033[0m"
+      echo "cmd1: bash build.sh -c"
+      echo -e "\033[32mIf cmd1 still failed, update torch_musa to newest and build: \033[0m"
+      echo "cmd2: git fetch && git rebase origin/main && bash build.sh -c"
+      echo -e "\033[32mIf cmd2 still failed, update libraries and build: \033[0m"
+      echo "cmd3: bash docker/common/daily/update_daily_musart.sh && bash docker/common/daily/update_daily_mudnn.sh && bash build.sh -c"
+      echo -e "\033[32mIf cmd3 still failed, please check driver version on your host machine. \033[0m"
+      exit 1
+    fi
+  fi
+}
+
+main

@@ -1,0 +1,179 @@
+--- upstream/openvla/prismatic/__init__.py
++++ musa/openvla/prismatic/__init__.py
+@@ -1 +1,13 @@
+-from .models import available_model_names, available_models, get_model_description, load
++"""Expose model helpers lazily so HF inference does not import training datasets."""
++
++__all__ = ["available_model_names", "available_models", "get_model_description", "load"]
++
++
++def __getattr__(name):
++    if name in __all__:
++        from . import models
++
++        value = getattr(models, name)
++        globals()[name] = value
++        return value
++    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+--- upstream/openvla/experiments/robot/openvla_utils.py
++++ musa/openvla/experiments/robot/openvla_utils.py
+@@ -3,12 +3,13 @@
+ import json
+ import os
+ import time
++from .device_runtime import get_device, synchronize
+ 
+ import numpy as np
+ import tensorflow as tf
+ import torch
+ from PIL import Image
+-from transformers import AutoConfig, AutoImageProcessor, AutoModelForVision2Seq, AutoProcessor
++from transformers import AutoConfig, AutoImageProcessor, AutoModelForVision2Seq, AutoProcessor, AutoTokenizer
+ 
+ from openvla.prismatic.extern.hf.configuration_prismatic import OpenVLAConfig,SpecVLAConfig
+ from openvla.prismatic.extern.hf.modeling_prismatic import OpenVLAForActionPrediction
+@@ -22,7 +23,7 @@
+ ACTION_DIM = 7
+ DATE = time.strftime("%Y_%m_%d")
+ DATE_TIME = time.strftime("%Y_%m_%d-%H_%M_%S")
+-DEVICE = torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu")
++DEVICE = get_device()
+ np.set_printoptions(formatter={"float": lambda x: "{0:0.3f}".format(x)})
+ 
+ # Initialize system prompt for OpenVLA v0.1.
+@@ -64,7 +65,8 @@
+             load_in_4bit=cfg.load_in_4bit,
+             low_cpu_mem_usage=True,
+             trust_remote_code=True,
+-            use_spec = True
++            use_spec = True,
++            attn_implementation="eager",
+         )
+         #load_head_path=os.path.join(cfg.spec_checkpoint, "pytorch_model.bin")
+         #print(load_model_path)
+@@ -156,7 +158,46 @@
+ 
+ def get_processor(cfg):
+     """Get VLA model's Hugging Face processor."""
+-    processor = AutoProcessor.from_pretrained(cfg.pretrained_checkpoint, trust_remote_code=True)
++    try:
++        processor = AutoProcessor.from_pretrained(
++            cfg.pretrained_checkpoint,
++            trust_remote_code=True,
++            local_files_only=True,
++        )
++    except OSError as exc:
++        # In fully offline mode AutoProcessor may still try to resolve the dynamic module
++        # from the Hugging Face Hub (see `auto_map` in `preprocessor_config.json`).
++        # Falling back to the locally-registered implementation keeps the workflow offline.
++        if "openvla/openvla-7b" in str(exc):
++            preprocessor_config = os.path.join(cfg.pretrained_checkpoint, "preprocessor_config.json")
++            if not os.path.isfile(preprocessor_config):
++                raise
++
++            with open(preprocessor_config, "r", encoding="utf-8") as f:
++                processor_cfg = json.load(f)
++
++            image_kwargs = {
++                key: processor_cfg[key]
++                for key in [
++                    "use_fused_vision_backbone",
++                    "image_resize_strategy",
++                    "input_sizes",
++                    "interpolations",
++                    "means",
++                    "stds",
++                ]
++                if key in processor_cfg
++            }
++
++            image_processor = PrismaticImageProcessor(**image_kwargs)
++            tokenizer = AutoTokenizer.from_pretrained(
++                cfg.pretrained_checkpoint,
++                trust_remote_code=True,
++                local_files_only=True,
++            )
++            processor = PrismaticProcessor(image_processor=image_processor, tokenizer=tokenizer)
++        else:
++            raise
+     return processor
+ 
+ 
+@@ -280,9 +321,10 @@
+     if return_topk_index:
+         action,token,hidden = vla.eval_topk(**inputs, unnorm_key=unnorm_key, return_hidden_states=return_hidden_states,do_sample=False)
+         return action
+-    start_time = time.time()
++    start_time = time.perf_counter()
+     action = vla.predict_action(**inputs, unnorm_key=unnorm_key, return_hidden_states=return_hidden_states,do_sample=False,generate_mode=generate_mode)
+-    end_time = time.time()
++    synchronize(DEVICE)
++    end_time = time.perf_counter()
+     # print(f"predict_action返回的动作: shape={action.shape}")
+     # print("====== 结束调用 get_vla_action ======\n")
+     if return_time:
+
+--- upstream/openvla/prismatic/extern/hf/modeling_speculation.py
++++ musa/openvla/prismatic/extern/hf/modeling_speculation.py
+@@ -579,19 +579,23 @@
+                 safetensors_model = f.read()
+                 #pytorch_model = safetensors.torch.deserialize(safetensors_model)
+                 #print(state_dict.keys())
+-                self.ea_layer = PMMModel(config, path=base_model_name_or_path,load_emb=True)
++                self.ea_layer = PMMModel(config, path=base_model_name_or_path,load_emb=False)
+                 ea_layer_state_dict = safetensors.torch.load(safetensors_model)
+         else:
+-            self.ea_layer = MMModel(config, path=base_model_name_or_path,load_emb=True)
++            self.ea_layer = MMModel(config, path=base_model_name_or_path,load_emb=False)
+             load_model_path=os.path.join(ea_model_path, "pytorch_model.bin")
+-            ea_layer_state_dict = torch.load(load_model_path)
++            ea_layer_state_dict = torch.load(load_model_path, map_location="cpu", weights_only=True)
+         #self.ea_layer.init_tree()
+         self.tree_mask = None
+         low_memory = False
+ 
+         device = base_model.language_model.model.layers[-1].self_attn.q_proj.weight.device
+         #load_=self.ea_layer.load_state_dict(ea_layer_state_dict, strict=False)
+-        self.ea_layer.load_state_dict(ea_layer_state_dict, strict=True)
++        # The checkpoint's redundant 32064-row embedding is immediately replaced below.
++        ea_layer_state_dict.pop("embed_tokens.weight", None)
++        incompatible = self.ea_layer.load_state_dict(ea_layer_state_dict, strict=False)
++        if incompatible.missing_keys != ["embed_tokens.weight"] or incompatible.unexpected_keys:
++            raise RuntimeError("SpecVLA drafter parameters do not match: " + str(incompatible))
+         self.ea_layer.embed_tokens = self.base_model.language_model.model.embed_tokens
+         self.ea_layer.to(self.base_model.dtype).to(device)
+         self.ea_layer.init_tree()
+@@ -793,6 +797,7 @@
+         # 从生成的tokens转换为动作值
+         predicted_action_token_ids = generated_ids[0, -self.get_action_dim(unnorm_key):].cpu().numpy()
+         #print('predicted_ids',predicted_action_token_ids)
++        self._last_action_token_ids_cpu = predicted_action_token_ids.tolist()
+         discretized_actions = self.vocab_size - predicted_action_token_ids
+         #print('vocab_size',self.vocab_size)
+         #print('final_action_token',discretized_actions)
+@@ -1133,6 +1138,13 @@
+             best_candidate, accept_length, sample_p = evaluate_posterior(
+                 logits, candidates, logits_processor,accept_threshold=accept_threshold
+             )
++            audit = getattr(self, "_acceptance_collector", None)
++            if audit is not None:
++                control = torch.stack((best_candidate.long(), accept_length.long())).detach().cpu().tolist()
++                audit_event = audit.verify(candidates, int(control[0]), int(control[1]), accept_threshold, False, input_ids.shape[1]-input_len-1)
++            else:
++                audit_event = None
++            audit_length_before = int(input_ids.shape[1])
+             input_ids, draft_tokens, retrieve_indices, tree_mask, tree_position_ids, new_token,prompt_embeds,past_key_value_data,attention_mask = update_inference_inputs(
+                 prompt_embeds,
+                 #prompt_hidden_states,
+@@ -1152,6 +1164,10 @@
+                 sample_p,
+                 attention_mask
+             )
++            if audit_event is not None:
++                committed = int(input_ids.shape[1]) - audit_length_before
++                audit_event["committed_new_action_tokens"] = committed
++                audit_event["committed_accepted_prefix_length"] = min(audit_event["accepted_prefix_length"], max(0, committed-1))
+             if self.tokenizer.eos_token_id in input_ids[0, input_len:].tolist():
+                 break
+             if new_token > max_new_tokens:

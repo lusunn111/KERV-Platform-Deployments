@@ -1,0 +1,47 @@
+# Copyright 2026 FlagOS Contributors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+defaults:
+  - _self_
+  - train: engram
+
+experiment:
+  exp_name: Qwen3-Engram
+  seed: 42
+  save_steps: 50
+  load: None
+  exp_dir: xxx
+  ckpt_format: torch
+  task:
+    type: train
+    backend: megatron
+    entrypoint: flagscale/train/megatron/train_engram.py
+  runner:
+    per_node_task: false
+    no_shared_fs: false
+    rdzv_backend: static
+    hostfile: xxx
+    ssh_port: xxx
+  cmds:
+    before_start: ulimit -n 1048576 && source /root/miniconda3/bin/activate flagscale-train
+  envs:
+    LOGLEVEL: "INFO"
+    CUDA_VISIBLE_DEVICES: "0,1,2,3,4,5,6,7"
+    CUDA_DEVICE_MAX_CONNECTIONS: 1
+
+action: run
+
+hydra:
+  run:
+    dir: ${experiment.exp_dir}/hydra

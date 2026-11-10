@@ -1,0 +1,9 @@
+# Numerical repair fallback: leave every RMSNorm native; keep two opt-in v2 ops.
+experiment:
+  exp_name: kerv_metax_numerical_native_rms
+  envs:
+    KERV_METAX_V2: rope,vision_graph
+    KERV_METAX_QUANT: none
+inference:
+  runtime:
+    run_id_note: metax-numerical-native-rms

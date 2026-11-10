@@ -1,0 +1,27 @@
+{
+  "chips": [
+    {
+      "id": "H1",
+      "name": "MTT S5000",
+      "backend": "musa",
+      "physical_device_id": 0,
+      "logical_device": "musa:0",
+      "host": "bm-mthreads-bjsjq-zone1-moer-s5000-80g-38-16",
+      "container": "kerv-musa-runtime",
+      "device_capacity_bytes": 85899345920,
+      "driver": "3.3.5-server",
+      "status": "AVAILABLE",
+      "note": "8 same-model cards do not count as 8 different chip models"
+    },
+    {
+      "id": "H2",
+      "status": "OUT_OF_LOCAL_SCOPE",
+      "reason": "User assigned only Moore machine"
+    },
+    {
+      "id": "H3",
+      "status": "BLOCKED",
+      "reason": "Third distinct chip model not on local machine"
+    }
+  ]
+}

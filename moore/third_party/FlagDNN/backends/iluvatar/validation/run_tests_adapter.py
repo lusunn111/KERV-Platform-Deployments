@@ -1,0 +1,1014 @@
+"""Iluvatar policy hooks for the repository batch-test runner."""
+
+from __future__ import annotations
+
+import math
+from pathlib import Path
+import re
+import shutil
+import tempfile
+from typing import Any
+
+SPEEDUP_METRIC = "corex_cudnn_median_us/flagdnn_median_us"
+EQUIVALENT_METRIC = "nvidia_equivalent_time_us/flagdnn_median_us"
+CONVOLUTION_CASE_PATTERN = re.compile(
+    r"^conv[123]d_(fprop|dgrad|wgrad)(?:_|$)"
+)
+
+DEFAULT_TIMEOUT = 1800
+REPORT_DEVICE = "cuda"
+PREFLIGHT_BY_DEFAULT = True
+SUPPORTS_MIN_SPEEDUP = True
+FILTER_REGISTERED_TESTS = False
+
+
+UNSUPPORTED_OPERATORS = frozenset({"moe_grouped_matmul", "matmul_fp8"})
+
+
+def select_operator_manifests(manifests):
+    # Extended benchmarks consume the same shared functional case generators
+    # as NVIDIA's native benchmark adapter, including explicit capability
+    # gates.
+    return {
+        **manifests,
+        "benchmark": list(
+            dict.fromkeys(manifests["benchmark"] + manifests["functional"])
+        ),
+    }
+
+
+def configure_environment(
+    environment: dict[str, str], device: str | None
+) -> None:
+    if device is not None:
+        environment["CUDA_VISIBLE_DEVICES"] = device
+
+
+def preflight_tests(_suites: list[str] | tuple[str, ...]) -> set[str]:
+    return {
+        "integration.iluvatar.cmake_configuration_contract",
+        "integration.iluvatar.dependency_boundary",
+        "integration.iluvatar.reference_dependency_boundary",
+        "integration.iluvatar.compiler_contract",
+        "integration.iluvatar.run_tests_adapter_contract",
+        "integration.iluvatar.artifact_contract",
+        "integration.iluvatar.validation_contract",
+        "integration.iluvatar.corex_cudnn_environment",
+        "integration.iluvatar.jit",
+        "integration.iluvatar.autotune",
+        "integration.iluvatar.convolution_tuning_contract",
+        "integration.iluvatar.dnn_support_contract",
+        "integration.iluvatar.runtime",
+        "integration.iluvatar.graph",
+        "integration.iluvatar.installed_consumer",
+        "integration.iluvatar.catalog_closure",
+    } | (
+        {
+            "integration.iluvatar.equivalent_baseline",
+            "integration.iluvatar.equivalent_record",
+        }
+        if "benchmark" in _suites
+        else set()
+    )
+
+
+def convolution_case_operator(case: str) -> str | None:
+    match = CONVOLUTION_CASE_PATTERN.match(case)
+    if match is None:
+        return None
+    return f"conv_{match.group(1)}"
+
+
+def benchmark_case_operator(
+    case: str, manifest_operators: list[str]
+) -> str | None:
+    matches = [
+        candidate
+        for candidate in dict.fromkeys(manifest_operators)
+        if case == candidate or case.startswith(f"{candidate}_")
+    ]
+    convolution_operator = convolution_case_operator(case)
+    if (
+        convolution_operator is not None
+        and convolution_operator in manifest_operators
+    ):
+        matches.append(convolution_operator)
+    if not matches:
+        return None
+    return max(matches, key=len)
+
+
+def corex_cudnn_skip_records(output: str) -> list[dict[str, str]]:
+    """Parse fixed-order Iluvatar CoreX cuDNN structured SKIP records."""
+    records: list[dict[str, str]] = []
+    pattern = re.compile(
+        r"^\[SKIP\]\[corex-cudnn\]\s+"
+        r"op=([^\s]+)\s+case=([^\s]+)\s+reason=([^\s]+)\s+"
+        r"cudnn_header=([^\s]+)\s+cudnn_runtime=([^\s]+)\s+"
+        r"corex=([^\s]+)\s+target=([^\s]+)\s+dtype=([^\s]+)\s+"
+        r"layout=([^\s]+)\s+shape=([^\s]+)$"
+    )
+    fields = (
+        "op",
+        "case",
+        "reason",
+        "cudnn_header",
+        "cudnn_runtime",
+        "corex",
+        "target",
+        "dtype",
+        "layout",
+        "shape",
+    )
+    for raw_line in output.splitlines():
+        line = re.sub(r"^\s*\d+:\s?", "", raw_line).strip()
+        if not line.startswith("[SKIP][corex-cudnn]"):
+            continue
+        match = pattern.fullmatch(line)
+        record = {"message": line}
+        if match is not None:
+            record.update(dict(zip(fields, match.groups(), strict=True)))
+        records.append(record)
+    return records
+
+
+def validate_iluvatar_skip_records(
+    records: list[dict[str, str]],
+    operator: str,
+    manifest_operators: list[str],
+) -> list[str]:
+    errors: list[str] = []
+    if not records:
+        return [
+            "Iluvatar suite emitted no structured CoreX cuDNN SKIP record "
+            f"for op={operator}"
+        ]
+    required = (
+        "op",
+        "case",
+        "reason",
+        "cudnn_header",
+        "cudnn_runtime",
+        "corex",
+        "target",
+        "dtype",
+        "layout",
+        "shape",
+    )
+    legal_reasons = {
+        "DNN_API_UNAVAILABLE",
+        "NO_EXACT_CUDNN_PRIMITIVE",
+        "SEMANTIC_MISMATCH",
+        "DTYPE_UNSUPPORTED",
+        "LAYOUT_UNSUPPORTED",
+        "ATTRIBUTE_UNSUPPORTED",
+        "SHAPE_UNSUPPORTED",
+        "CUDNN_STATUS_NOT_SUPPORTED",
+        "CAPTURE_UNSUPPORTED",
+    }
+    legal_dtypes = {
+        "int32",
+        "fp8_e8m0",
+        "fp32",
+        "fp16",
+        "bf16",
+        "bool",
+        "fp8_e4m3",
+        "fp8_e5m2",
+    }
+    seen_cases: set[str] = set()
+    for index, record in enumerate(records, start=1):
+        missing = [key for key in required if not record.get(key, "").strip()]
+        if missing:
+            errors.append(
+                f"CoreX cuDNN skip record {index} is missing non-empty "
+                + ", ".join(missing)
+            )
+            continue
+        if record["op"] != operator:
+            errors.append(
+                f"CoreX cuDNN skip record {index} has op={record['op']}; "
+                f"expected op={operator}"
+            )
+        owner = benchmark_case_operator(record["case"], manifest_operators)
+        if owner != operator:
+            errors.append(
+                f"CoreX cuDNN skip record {index} has case={record['case']} "
+                f"owned_by={owner}; expected owner={operator}"
+            )
+        if record["case"] in seen_cases:
+            errors.append(
+                "CoreX cuDNN skip records contain duplicate case names"
+            )
+        seen_cases.add(record["case"])
+        if record["reason"] not in legal_reasons:
+            errors.append(
+                f"CoreX cuDNN skip record {index} has illegal "
+                f"reason={record['reason']}"
+            )
+        for version_field in ("cudnn_header", "cudnn_runtime"):
+            value = record[version_field]
+            if not value.isdecimal() or int(value) <= 0:
+                errors.append(
+                    f"CoreX cuDNN skip record {index} has invalid "
+                    f"{version_field}={value}"
+                )
+        if re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", record["corex"]) is None:
+            errors.append(
+                f"CoreX cuDNN skip record {index} has invalid "
+                f"corex={record['corex']}"
+            )
+        if record["target"] != "corex_71":
+            errors.append(
+                f"CoreX cuDNN skip record {index} has "
+                f"target={record['target']}; expected corex_71"
+            )
+        if record["dtype"] not in legal_dtypes:
+            errors.append(
+                f"CoreX cuDNN skip record {index} has invalid "
+                f"dtype={record['dtype']}"
+            )
+        if record["layout"] not in {"contiguous", "strided"}:
+            errors.append(
+                f"CoreX cuDNN skip record {index} has invalid "
+                f"layout={record['layout']}"
+            )
+    return errors
+
+
+def _parse_iluvatar_case_accounting(
+    output: str, operator: str, suite: str
+) -> tuple[dict[str, int | str] | None, list[str]]:
+    marker_pattern = re.compile(
+        r"^(FLAGDNN_[A-Z0-9_]+_(?:FUNCTIONAL|BENCHMARK)):\s*(.*)$"
+    )
+    markers: list[tuple[str, str]] = []
+    for raw_line in output.splitlines():
+        line = re.sub(r"^\s*\d+:\s?", "", raw_line).strip()
+        match = marker_pattern.fullmatch(line)
+        if match is not None:
+            markers.append((match.group(1), match.group(2)))
+    expected_marker = f"FLAGDNN_{operator.upper()}_{suite.upper()}"
+    if len(markers) != 1:
+        return None, [
+            f"Iluvatar {suite} suite for op={operator} must emit exactly one "
+            f"{expected_marker} accounting record; found {len(markers)}"
+        ]
+    marker, payload = markers[0]
+    errors: list[str] = []
+    if marker != expected_marker:
+        errors.append(
+            f"Iluvatar suite accounting marker={marker}; "
+            f"expected {expected_marker}"
+        )
+    if suite == "functional":
+        pattern = re.compile(
+            r"(PASS|SKIP)\s+cases=(\d+)\s+production_executed=(\d+)\s+"
+            r"reference_executed=(\d+)\s+reference_skipped=(\d+)\s*$"
+        )
+        match = pattern.fullmatch(payload)
+        if match is None:
+            errors.append(
+                f"Iluvatar functional accounting payload for marker={marker} "
+                "is malformed"
+            )
+            return None, errors
+        status, cases, production, reference, skipped = match.groups()
+        return {
+            "status": status,
+            "cases": int(cases),
+            "production_executed": int(production),
+            "reference_executed": int(reference),
+            "reference_skipped": int(skipped),
+        }, errors
+    if suite == "benchmark":
+        pattern = re.compile(
+            r"(PASS|SKIP)\s+cases=(\d+)\s+comparable_executed=(\d+)\s+"
+            r"reference_skipped=(\d+)\s*$"
+        )
+        match = pattern.fullmatch(payload)
+        if match is None:
+            errors.append(
+                f"Iluvatar benchmark accounting payload for marker={marker} "
+                "is malformed"
+            )
+            return None, errors
+        status, cases, comparable, skipped = match.groups()
+        return {
+            "status": status,
+            "cases": int(cases),
+            "comparable_executed": int(comparable),
+            "reference_skipped": int(skipped),
+        }, errors
+    return None, [f"unknown Iluvatar suite={suite}"]
+
+
+def validate_iluvatar_case_accounting(
+    output: str,
+    operator: str,
+    suite: str,
+    ctest_reported_status: str,
+    records: dict[str, dict[str, Any]],
+    skip_records: list[dict[str, str]],
+) -> list[str]:
+    accounting, errors = _parse_iluvatar_case_accounting(
+        output, operator, suite
+    )
+    if accounting is None:
+        return errors
+    cases = int(accounting["cases"])
+    reported_status = str(accounting["status"])
+    expected_status = "SKIP" if ctest_reported_status == "skipped" else "PASS"
+    if reported_status != expected_status:
+        errors.append(
+            f"Iluvatar accounting status={reported_status}; "
+            f"CTest status requires {expected_status}"
+        )
+    if cases <= 0:
+        errors.append("Iluvatar suite accounting cases must be positive")
+    if len(skip_records) != int(accounting["reference_skipped"]):
+        errors.append(
+            "Iluvatar suite reference_skipped does not match unique "
+            "structured CoreX cuDNN SKIP records"
+        )
+    skipped_cases = {
+        record.get("case", "") for record in skip_records if record.get("case")
+    }
+    timed_skips = sorted(skipped_cases.intersection(records))
+    if timed_skips:
+        errors.append(
+            "Iluvatar benchmark emitted timing for skipped case(s): "
+            + ", ".join(timed_skips)
+        )
+    if suite == "functional":
+        production = int(accounting["production_executed"])
+        reference = int(accounting["reference_executed"])
+        skipped = int(accounting["reference_skipped"])
+        if production != cases:
+            errors.append(
+                f"Iluvatar functional cases={cases} but "
+                f"production_executed={production}"
+            )
+        if reference + skipped != cases:
+            errors.append(
+                f"Iluvatar functional cases={cases} but "
+                f"reference_executed+reference_skipped={reference + skipped}"
+            )
+        if reported_status == "PASS" and reference <= 0:
+            errors.append(
+                "Iluvatar functional PASS must execute a reference case"
+            )
+        if reported_status == "SKIP" and not (
+            reference == 0 and skipped == cases and production == cases
+        ):
+            errors.append(
+                "Iluvatar functional SKIP requires full production execution "
+                "and every reference case skipped"
+            )
+    else:
+        comparable = int(accounting["comparable_executed"])
+        skipped = int(accounting["reference_skipped"])
+        if comparable + skipped != cases:
+            errors.append(
+                f"Iluvatar benchmark cases={cases} but "
+                f"comparable_executed+reference_skipped={comparable + skipped}"
+            )
+        if len(records) != comparable:
+            errors.append(
+                f"Iluvatar benchmark comparable_executed={comparable} but "
+                f"emitted {len(records)} timing case groups"
+            )
+        if reported_status == "PASS" and comparable <= 0:
+            errors.append(
+                "Iluvatar benchmark PASS must execute a comparable case"
+            )
+        if reported_status == "SKIP" and not (
+            comparable == 0 and skipped == cases
+        ):
+            errors.append(
+                "Iluvatar benchmark SKIP requires every reference case skipped"
+            )
+    return errors
+
+
+def validate_iluvatar_benchmark_pairs(
+    records: dict[str, dict[str, Any]],
+    operator: str,
+    manifest_operators: list[str],
+) -> list[str]:
+    errors: list[str] = []
+    expected_order = ["flagdnn", "corex_cudnn"]
+    if not records:
+        return ["passed Iluvatar benchmark emitted no provider records"]
+    for case, providers in records.items():
+        owner = benchmark_case_operator(case, manifest_operators)
+        if owner != operator:
+            errors.append(
+                f"Iluvatar benchmark emitted case={case} owned_by={owner}; "
+                f"expected owner={operator}"
+            )
+        actual_order = list(providers)
+        if (
+            actual_order == ["flagdnn"]
+            and "equivalent_baseline" in providers["flagdnn"]
+        ):
+            try:
+                validate_benchmark_record(providers["flagdnn"])
+            except ValueError as error:
+                errors.append(
+                    f"Iluvatar equivalent benchmark case={case}: {error}"
+                )
+            continue
+        if actual_order != expected_order:
+            errors.append(
+                f"Iluvatar benchmark case={case} "
+                f"provider_order={actual_order}; "
+                f"expected={expected_order}"
+            )
+            continue
+        flagdnn_samples = providers["flagdnn"].get("samples", [])
+        reference_samples = providers["corex_cudnn"].get("samples", [])
+        if len(flagdnn_samples) != len(reference_samples):
+            errors.append(
+                f"Iluvatar benchmark case={case} provider sample counts differ"
+            )
+    return errors
+
+
+def iluvatar_speedup_summary(
+    results: dict[str, dict[str, Any]], threshold: float | None
+) -> dict[str, Any]:
+    """Summarize native speedups and equivalent efficiency separately."""
+    cases: list[dict[str, Any]] = []
+    benchmark_results: list[dict[str, Any]] = []
+    for operator, operator_results in results.items():
+        benchmark = operator_results.get("benchmark")
+        if not isinstance(benchmark, dict):
+            continue
+        benchmark_results.append(benchmark)
+        if benchmark.get("status") != "passed":
+            continue
+        records = benchmark.get("records", {})
+        if not isinstance(records, dict):
+            continue
+        for case, providers in records.items():
+            if not isinstance(providers, dict):
+                continue
+            if (
+                list(providers) == ["flagdnn"]
+                and "equivalent_baseline" in providers["flagdnn"]
+            ):
+                measured = providers["flagdnn"]
+                baseline = measured["equivalent_baseline"]
+                cases.append(
+                    {
+                        "operator": operator,
+                        "case": case,
+                        "flagdnn_median_us": float(measured["median"]),
+                        "equivalent_time_us": baseline["equivalent_time_us"],
+                        "speedup": baseline["relative_efficiency"],
+                        "equivalent_baseline": baseline,
+                    }
+                )
+                continue
+            if list(providers) != ["flagdnn", "corex_cudnn"]:
+                continue
+            flagdnn_us = float(providers["flagdnn"]["median"])
+            reference_us = float(providers["corex_cudnn"]["median"])
+            cases.append(
+                {
+                    "operator": operator,
+                    "case": case,
+                    "flagdnn_median_us": flagdnn_us,
+                    "corex_cudnn_median_us": reference_us,
+                    "speedup": reference_us / flagdnn_us,
+                }
+            )
+    coverage_verified = bool(benchmark_results) and all(
+        result.get("status") in {"passed", "skipped"}
+        and not result.get("record_errors")
+        and not result.get("skip_record_errors")
+        and not result.get("case_accounting_errors")
+        and isinstance(result.get("case_accounting"), dict)
+        for result in benchmark_results
+    )
+    cases.sort(key=lambda record: (record["speedup"], record["case"]))
+    failures = (
+        []
+        if threshold is None
+        else [
+            record
+            for record in cases
+            if record["speedup"]
+            < (
+                max(
+                    threshold,
+                    record["equivalent_baseline"]["min_relative_efficiency"],
+                )
+                if "equivalent_baseline" in record
+                else threshold
+            )
+        ]
+    )
+    ratio_gate_passed = threshold is None or (bool(cases) and not failures)
+    return {
+        "metric": SPEEDUP_METRIC,
+        "equivalent_metric": EQUIVALENT_METRIC,
+        "threshold": threshold,
+        "gate_passed": ratio_gate_passed and coverage_verified,
+        "ratio_gate_passed": ratio_gate_passed,
+        "coverage_gate_passed": coverage_verified,
+        "comparable_coverage_verified": coverage_verified,
+        "case_count": len(cases),
+        "passed_case_count": len(cases) - len(failures),
+        "failed_case_count": len(failures),
+        "minimum_speedup": cases[0]["speedup"] if cases else None,
+        "failures": failures,
+    }
+
+
+def prepare_run(
+    *, environment: dict[str, str], verbose: bool
+) -> dict[str, Any]:
+    configured = environment.get("FLAGDNN_CACHE_PATH", "")
+    owned = not configured
+    cache_path = Path(
+        configured or tempfile.mkdtemp(prefix="flagdnn-iluvatar-run-")
+    ).resolve()
+    cache_path.mkdir(parents=True, exist_ok=True)
+    environment["FLAGDNN_CACHE_PATH"] = str(cache_path)
+    if verbose:
+        print(f"Iluvatar cache: {cache_path}", flush=True)
+    return {
+        "cache_path": str(cache_path),
+        "cache_owned": owned,
+        "cache_preserved": bool(verbose) or not owned,
+    }
+
+
+def partial_capability_skips(output: str, operator: str):
+    records, errors, seen = [], [], set()
+    for raw in output.splitlines():
+        line = re.sub(r"^\s*\d+:\s?", "", raw).strip()
+        if not line.startswith("[SKIP][iluvatar]"):
+            continue
+        match = re.fullmatch(
+            r"\[SKIP\]\[iluvatar\] op=matmul "
+            r"case=(matmul_a(?:e4m3|e5m2)_b(?:e4m3|e5m2)_mode3_"
+            r"[0-9]+_[0-9]+_[0-9]+(?:_out_(?:fp16|bf16))?) "
+            r"reason=DNN_FP8_UNAVAILABLE",
+            line,
+        )
+        if operator != "matmul" or match is None or match[1] in seen:
+            errors.append(
+                "invalid or duplicate partial capability SKIP: " + line
+            )
+            continue
+        seen.add(match[1])
+        records.append(
+            {
+                "operator": "matmul",
+                "case": match[1],
+                "reason": "DNN_FP8_UNAVAILABLE",
+            }
+        )
+    return records, errors
+
+
+def postprocess_result(
+    *,
+    result: dict[str, Any],
+    ctest_reported_status: str,
+    output: str,
+    operator: str,
+    suite: str,
+    records: dict[str, dict[str, Any]],
+    manifest_operators: list[str],
+) -> None:
+    if (
+        ctest_reported_status == "skipped"
+        and operator in UNSUPPORTED_OPERATORS
+    ):
+        expected = (
+            f"DNN_CAPABILITY_UNAVAILABLE: iluvatar: {operator} "
+            f"reason=DNN_API_UNAVAILABLE"
+        )
+        lines = [
+            re.sub(r"^\s*\d+:\s?", "", line).strip()
+            for line in output.splitlines()
+        ]
+        if expected in lines:
+            result["capability_skip"] = {
+                "reason": "DNN_API_UNAVAILABLE",
+                "operator": operator,
+            }
+            result["case_accounting"] = {
+                "status": "SKIP",
+                "cases": 0,
+                "production_executed": 0,
+                "reference_executed": 0,
+                "reference_skipped": 0,
+                "comparable_executed": 0,
+            }
+            return
+    partial_skips, partial_errors = partial_capability_skips(output, operator)
+    if partial_skips:
+        result["partial_capability_skips"] = partial_skips
+    if partial_errors:
+        result["skip_record_errors"] = partial_errors
+        result["status"] = "failed"
+    skip_records = corex_cudnn_skip_records(output)
+    if skip_records:
+        result["skip_records"] = skip_records
+    if ctest_reported_status == "skipped" or skip_records:
+        skip_errors = validate_iluvatar_skip_records(
+            skip_records, operator, manifest_operators
+        )
+        if skip_errors:
+            result.setdefault("skip_record_errors", []).extend(skip_errors)
+            result["status"] = "failed"
+    if suite == "benchmark" and result["status"] == "passed":
+        pair_errors = validate_iluvatar_benchmark_pairs(
+            records, operator, manifest_operators
+        )
+        if pair_errors:
+            result.setdefault("record_errors", []).extend(pair_errors)
+            result["status"] = "failed"
+    if ctest_reported_status in {"passed", "skipped"}:
+        accounting, parse_errors = _parse_iluvatar_case_accounting(
+            output, operator, suite
+        )
+        if accounting is not None:
+            result["case_accounting"] = accounting
+        accounting_errors = validate_iluvatar_case_accounting(
+            output,
+            operator,
+            suite,
+            ctest_reported_status,
+            records,
+            skip_records,
+        )
+        if parse_errors and not accounting_errors:
+            accounting_errors = parse_errors
+        if accounting_errors:
+            result["case_accounting_errors"] = accounting_errors
+            result["status"] = "failed"
+
+
+def result_diagnostics(result: dict[str, Any]) -> list[tuple[str, str]]:
+    diagnostics: list[tuple[str, str]] = []
+    diagnostics.extend(
+        ("CoreX cuDNN skip record error", error)
+        for error in result.get("skip_record_errors", [])
+    )
+    diagnostics.extend(
+        ("Iluvatar case accounting error", error)
+        for error in result.get("case_accounting_errors", [])
+    )
+    return diagnostics
+
+
+def status_is_success(status: str) -> bool:
+    return status in {"passed", "skipped"}
+
+
+def _cache_summary_and_cleanup(state: dict[str, Any]) -> dict[str, Any]:
+    cache_value = state.get("cache_path")
+    if not isinstance(cache_value, str) or not cache_value:
+        raise RuntimeError("Iluvatar adapter state has no run cache path")
+    cache_path = Path(cache_value).resolve()
+    if state.get("cache_owned") is False:
+        return {"path": str(cache_path), "preserved": True}
+    temporary_root = Path(tempfile.gettempdir()).resolve()
+    if cache_path.parent != temporary_root or not cache_path.name.startswith(
+        "flagdnn-iluvatar-run-"
+    ):
+        raise RuntimeError(
+            f"Iluvatar adapter refuses unsafe cache path: {cache_path}"
+        )
+    preserved = bool(state.get("cache_preserved", False))
+    summary = {"path": str(cache_path), "preserved": preserved}
+    if not preserved:
+        shutil.rmtree(cache_path, ignore_errors=True)
+    return summary
+
+
+def finalize(
+    *,
+    results: dict[str, dict[str, Any]],
+    suite_operators: dict[str, list[str]],
+    suites: list[str],
+    state: dict[str, Any],
+    min_speedup: float | None,
+    preflight_passed: bool,
+) -> dict[str, Any]:
+    del suite_operators, preflight_passed
+    complete_pairs = 0
+    equivalent_cases = 0
+    skip_record_errors = 0
+    accounting_errors = 0
+    record_errors = 0
+    functional_cases = 0
+    production_executed = 0
+    reference_executed = 0
+    functional_reference_skipped = 0
+    benchmark_cases = 0
+    comparable_executed = 0
+    benchmark_reference_skipped = 0
+    skip_reasons: dict[str, int] = {}
+    partial_capability_counts = {"functional": 0, "benchmark": 0}
+
+    for operator_results in results.values():
+        for suite_name, result in operator_results.items():
+            partial_capability_counts[suite_name] += len(
+                result.get("partial_capability_skips", [])
+            )
+            records = result.get("records", {})
+            if result.get("status") == "passed" and isinstance(records, dict):
+                complete_pairs += sum(
+                    isinstance(providers, dict)
+                    and list(providers) == ["flagdnn", "corex_cudnn"]
+                    for providers in records.values()
+                )
+                equivalent_cases += sum(
+                    isinstance(providers, dict)
+                    and list(providers) == ["flagdnn"]
+                    and "equivalent_baseline" in providers["flagdnn"]
+                    for providers in records.values()
+                )
+            record_errors += len(result.get("record_errors", []))
+            skip_record_errors += len(result.get("skip_record_errors", []))
+            accounting_errors += len(result.get("case_accounting_errors", []))
+            if result.get("status") in {"passed", "skipped"}:
+                for record in result.get("skip_records", []):
+                    reason = record.get("reason")
+                    if reason:
+                        skip_reasons[reason] = skip_reasons.get(reason, 0) + 1
+            accounting = result.get("case_accounting")
+            if not isinstance(accounting, dict):
+                continue
+            if suite_name == "functional":
+                functional_cases += int(accounting["cases"])
+                production_executed += int(accounting["production_executed"])
+                reference_executed += int(accounting["reference_executed"])
+                functional_reference_skipped += int(
+                    accounting["reference_skipped"]
+                )
+            elif suite_name == "benchmark":
+                benchmark_cases += int(accounting["cases"])
+                comparable_executed += int(accounting["comparable_executed"])
+                benchmark_reference_skipped += int(
+                    accounting["reference_skipped"]
+                )
+
+    performance = (
+        iluvatar_speedup_summary(results, min_speedup)
+        if "benchmark" in suites
+        else None
+    )
+    comparable_coverage: dict[str, Any] | None = None
+    failed = False
+    if performance is not None:
+        missing_pairs = max(
+            0, comparable_executed - complete_pairs - equivalent_cases
+        )
+        comparable_coverage = {
+            "metric": SPEEDUP_METRIC,
+            "required_case_count": comparable_executed,
+            "observed_pair_case_count": complete_pairs,
+            "equivalent_case_count": equivalent_cases,
+            "missing_case_count": missing_pairs,
+            "verified": (
+                performance["coverage_gate_passed"] and missing_pairs == 0
+            ),
+        }
+        if not comparable_coverage["verified"]:
+            print(
+                "Iluvatar comparable coverage gate failed: "
+                f"native_pairs={complete_pairs} "
+                f"equivalent_cases={equivalent_cases} "
+                f"accounted={comparable_executed} "
+                f"missing_cases={missing_pairs}",
+                flush=True,
+            )
+            failed = True
+        if min_speedup is not None:
+            print(
+                "performance gate: "
+                f"{performance['passed_case_count']}/"
+                f"{performance['case_count']} cases meet "
+                f"speedup >= {min_speedup:.6g}",
+                flush=True,
+            )
+            for record in performance["failures"]:
+                reference_name = (
+                    "equivalent_time_us"
+                    if "equivalent_baseline" in record
+                    else "corex_cudnn_median_us"
+                )
+                print(
+                    "  FAIL "
+                    f"op={record['operator']} case={record['case']} "
+                    f"flagdnn_us={record['flagdnn_median_us']:.9g} "
+                    f"{reference_name}={record[reference_name]:.9g} "
+                    f"speedup={record['speedup']:.9g}",
+                    flush=True,
+                )
+            if performance["case_count"] == 0:
+                print(
+                    "  FAIL no validated native or equivalent benchmark "
+                    "case was emitted",
+                    flush=True,
+                )
+        failed = failed or not performance["gate_passed"]
+
+    iluvatar_coverage = {
+        "partial_capability_skipped": partial_capability_counts,
+        "production": {
+            "functional_cases": functional_cases,
+            "functional_executed": production_executed,
+        },
+        "reference": {
+            "functional_executed": reference_executed,
+            "functional_skipped": functional_reference_skipped,
+            "skip_reasons": dict(sorted(skip_reasons.items())),
+        },
+        "benchmark": {
+            "cases": benchmark_cases,
+            "comparable_executed": comparable_executed,
+            "reference_skipped": benchmark_reference_skipped,
+            "complete_provider_pairs": complete_pairs,
+            "equivalent_cases": equivalent_cases,
+        },
+        "record_errors": record_errors,
+        "skip_record_errors": skip_record_errors,
+        "case_accounting_errors": accounting_errors,
+    }
+    cache_summary = _cache_summary_and_cleanup(state)
+    return {
+        "failed": failed,
+        "summary": {
+            "comparable_coverage": comparable_coverage,
+            "iluvatar_coverage": iluvatar_coverage,
+            "iluvatar_cache": cache_summary,
+            "performance": performance,
+        },
+        "coverage": {
+            "corex_cudnn_reference_skips": (
+                functional_reference_skipped + benchmark_reference_skipped
+            ),
+            "corex_cudnn_skip_record_errors": skip_record_errors,
+            "iluvatar_case_accounting_errors": accounting_errors,
+        },
+    }
+
+
+def validate_benchmark_record(
+    record: dict[str, Any]
+) -> dict[str, dict[str, Any]]:
+    # v4 stores measured samples and a derived, unsampled reference.
+    expected = {
+        "schema_version",
+        "kind",
+        "provider",
+        "case",
+        "unit",
+        "median",
+        "p90",
+        "samples",
+        "equivalent_baseline",
+    }
+    if set(record) != expected:
+        raise ValueError("fields do not match Iluvatar benchmark schema v4")
+    if (
+        type(record["schema_version"]) is not int
+        or record["schema_version"] != 4
+        or record["kind"] != "steady_state"
+        or record["provider"] != "flagdnn"
+        or record["unit"] != "us"
+        or not isinstance(record["case"], str)
+        or not record["case"]
+    ):
+        raise ValueError(
+            "schema v4 requires a supported measured FlagDNN case"
+        )
+    case_operator = benchmark_case_operator(
+        record["case"], ["batchnorm", "identity", "div"]
+    )
+    baseline = record["equivalent_baseline"]
+    identities = {
+        "provider": "nvidia_equivalent",
+        "platform": "nvidia",
+        "target_platform": "iluvatar",
+        "timing_profile": (
+            "batchnorm_training" if case_operator == "batchnorm" else "native"
+        ),
+    }
+    numeric = {
+        "reference_time_us",
+        "reference_peak",
+        "target_peak",
+        "min_relative_efficiency",
+        "equivalent_time_us",
+        "limit_us",
+        "relative_efficiency",
+    }
+    required = set(identities) | numeric | {"scale_metric", "passed"}
+    extensions = {"traffic_ratio", "reference_validation"}
+    if case_operator != "div":
+        required |= extensions
+    if (
+        not isinstance(baseline, dict)
+        or not required <= set(baseline) <= required | extensions
+        or any(baseline[key] != value for key, value in identities.items())
+        or not isinstance(baseline["scale_metric"], str)
+        or baseline["scale_metric"]
+        not in {"vector_fp32", "hbm_copy", "hbm_triad", "hbm_write"}
+        or not isinstance(
+            baseline.get("reference_validation", "cpu_full"), str
+        )
+        or baseline.get("reference_validation", "cpu_full")
+        not in {"cpu_full", "cpu_sampled", "bit_exact", "sanity"}
+    ):
+        raise ValueError("invalid equivalent-baseline fields or identity")
+    if case_operator == "identity" and (
+        baseline["scale_metric"] != "hbm_copy"
+        or baseline["reference_validation"]
+        != (
+            "cpu_full"
+            if record["case"].startswith("identity_perf_")
+            else "bit_exact"
+        )
+        or baseline["traffic_ratio"]
+        != (8 if record["case"].startswith("identity_bool_") else 1)
+    ):
+        raise ValueError(
+            "identity requires its measured validation "
+            "and logical-byte copy ratio"
+        )
+
+    def positive(value: Any) -> bool:
+        try:
+            return (
+                type(value) in (int, float)
+                and math.isfinite(value)
+                and value > 0
+            )
+        except OverflowError:
+            return False
+
+    if any(not positive(baseline[key]) for key in numeric) or not positive(
+        record["median"]
+    ):
+        raise ValueError(
+            "equivalent-baseline numbers must be finite and positive"
+        )
+    traffic_ratio = baseline.get("traffic_ratio", 1.0)
+    if not positive(traffic_ratio) or (
+        baseline["scale_metric"] == "vector_fp32" and traffic_ratio != 1
+    ):
+        raise ValueError(
+            "traffic_ratio must be finite and positive; "
+            "non-unit traffic is only supported by HBM metrics"
+        )
+    if baseline["min_relative_efficiency"] > 1:
+        raise ValueError("min_relative_efficiency must be in (0, 1]")
+    sample_count = 10 if case_operator == "batchnorm" else 20
+    if (
+        not isinstance(record["samples"], list)
+        or len(record["samples"]) != sample_count
+    ):
+        raise ValueError(
+            f"{identities['timing_profile']} timing profile requires "
+            f"{sample_count} measured samples"
+        )
+    try:
+        equivalent = (
+            baseline["reference_time_us"]
+            * baseline["reference_peak"]
+            / baseline["target_peak"]
+            * traffic_ratio
+        )
+        derived = {
+            "equivalent_time_us": equivalent,
+            "limit_us": equivalent / baseline["min_relative_efficiency"],
+            "relative_efficiency": equivalent / record["median"],
+        }
+    except OverflowError as error:
+        raise ValueError("equivalent-baseline formula overflowed") from error
+    for key, value in derived.items():
+        if not positive(value) or not math.isclose(
+            baseline[key], value, rel_tol=1.0e-12, abs_tol=0.0
+        ):
+            raise ValueError(
+                f"equivalent-baseline {key} does not match formula"
+            )
+    if type(baseline["passed"]) is not bool or baseline["passed"] != (
+        record["median"] <= baseline["limit_us"]
+    ):
+        raise ValueError(
+            "equivalent-baseline passed disagrees with measured limit"
+        )
+    return {
+        "timing": {key: record[key] for key in ("median", "p90", "samples")}
+    }

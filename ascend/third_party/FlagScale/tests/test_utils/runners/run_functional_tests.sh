@@ -1,0 +1,426 @@
+#!/bin/bash
+
+# Copyright 2026 FlagOS Contributors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Functional Test Runner
+set -eo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+source "$SCRIPT_DIR/utils.sh"
+source "$PROJECT_ROOT/.github/scripts/set_env_common.sh"
+ci_resolve_python_bin
+
+# Ensure the repo root is on PYTHONPATH so training subprocesses can import
+# top-level packages that are not shipped by `pip install .` (e.g. `tools`,
+# used by train_qwen*_vl.py). The runner appends the pre-set PYTHONPATH when
+# generating the launch script, so this propagates to the torchrun workers.
+#
+# The FlagScale training tree is a namespace overlay: it supplies
+# megatron.training while the prepared runtime supplies megatron.core.
+prepared_megatron_dir="${GITHUB_WORKSPACE:-$PROJECT_ROOT/..}/megatron-lm-fl-install"
+if [ -d "$prepared_megatron_dir" ]; then
+    export MEGATRON_INSTALL_DIR="$prepared_megatron_dir"
+    ci_configure_training_pythonpath
+else
+    export PYTHONPATH="$PROJECT_ROOT:${PYTHONPATH:-}"
+fi
+export PYTHONNOUSERSITE=1
+
+# Preserve dependency paths selected by the image or environment setup.
+# Source-only Megatron installations may not exist in site-packages.
+
+# trust_remote_code tokenizers are copied into this cache. Train and benchmark
+# jobs can start together on the same runner, so a shared modules directory is
+# unsafe and can produce partial QWenTokenizer imports.
+ci_setup_isolated_hf_modules_cache
+
+# Defaults
+PLATFORM="default"
+DEVICE=""
+TASK=""
+MODEL=""
+TEST_LIST=""
+
+# Parse arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --platform) PLATFORM="$2"; shift 2 ;;
+        --device) DEVICE="$2"; shift 2 ;;
+        --task) TASK="$2"; shift 2 ;;
+        --model) MODEL="$2"; shift 2 ;;
+        --list) TEST_LIST="$2"; shift 2 ;;
+        -h|--help) cat <<EOF && exit 0
+Usage: $(basename "$0") [OPTIONS]
+
+Run functional tests with platform-specific configurations.
+
+OPTIONS:
+    --platform PLATFORM  Platform type (default: default)
+    --device DEVICE      Device type (e.g., a100, a800, h100, generic)
+                         If not specified, runs tests for all devices in the platform
+    --task TASK          Task name (e.g., train, hetero_train)
+    --model MODEL        Model name (e.g., aquila, mixtral, deepseek)
+    --list TESTS         Comma-separated test list
+    -h, --help           Show this help message
+
+EXAMPLES:
+    # Run all tests for all devices in the platform
+    $(basename "$0") --platform cuda
+
+    # Run tests for specific device
+    $(basename "$0") --platform cuda --device a100
+
+    # Run specific task
+    $(basename "$0") --platform cuda --device a800 --task train
+
+    # Run specific model in a task
+    $(basename "$0") --task train --model aquila --platform cuda --device h100
+
+    # Run specific test cases
+    $(basename "$0") --task train --model aquila --list tp2_pp2,tp4_pp2
+EOF
+        ;;
+        *) log_error "Unknown option: $1"; exit 1 ;;
+    esac
+done
+
+# Function to run a single test
+run_test() {
+    local task="$1" model="$2" config="$3"
+    local test_dir="tests/functional_tests/$task/$model"
+    local conf_dir="$test_dir/conf"
+
+    [ -d "$conf_dir" ] || { log_error "Config dir not found: $conf_dir"; return 1; }
+
+    # Convert to absolute path — Hydra treats relative --config-path as a
+    # Python package path relative to the decorated function's module.
+    conf_dir="$(cd "$conf_dir" && pwd)"
+
+    # Check config file exists
+    local config_file=""
+    if [ -f "$conf_dir/$config.yaml" ]; then
+        config_file="$conf_dir/$config.yaml"
+    elif [ -f "$conf_dir/$config.yml" ]; then
+        config_file="$conf_dir/$config.yml"
+    else
+        log_error "Config not found: $conf_dir/$config.{yaml,yml}"
+        return 1
+    fi
+
+    log_info "Running: $task/$model/$config"
+    wait_for_gpu || return 1
+
+    # Clean old results
+    # Extract exp_dir from config file and clean it
+    local exp_dir=$(grep -oP '^\s*exp_dir:\s*\K\S+' "$config_file" | head -1 | tr -d "\"'")
+    if [ -n "$exp_dir" ]; then
+        log_info "Cleaning old results in: $exp_dir"
+        rm -rf "$exp_dir"/* 2>/dev/null || true
+    fi
+
+    # Map task name to flagscale CLI subcommand
+    # e.g. hetero_train -> train, train -> train, benchmark -> train, others unchanged
+    local cli_task="$task"
+    case "$task" in
+        benchmark) cli_task="train" ;;
+        *train*) cli_task="train" ;;
+    esac
+
+    # Run test via flagscale CLI
+    # --config expects the full YAML path
+    log_info "Running: flagscale $cli_task $model --config $config_file --test"
+    flagscale "$cli_task" "$model" --config "$config_file" --test || return 1
+
+    # Match the corresponding comparison function according to task type
+    # Matching rules:
+    #   - *train*: Tasks containing "train" (e.g., train, hetero_train), use training result comparison function
+    #   - inference: Exact match for inference tasks, use inference result comparison function
+    #   - *: Unsupported task type, throw error and exit execution
+    local compare_function
+    case "$task" in
+        benchmark)
+            compare_function="test_benchmark_equal"
+            ;;
+        *train*)
+            compare_function="test_train_equal"
+            ;;
+        inference)
+            compare_function="test_inference_equal"
+            ;;
+        serve)
+            compare_function="test_serve_equal"
+            ;;
+        rl)
+            compare_function="test_rl_equal"
+            ;;
+        *)
+            log_error "Unsupported task type: $task, no corresponding comparison function for standard vs test values"
+            return 1
+            ;;
+    esac
+
+    # Validate results using pytest-based checker (check_results.py)
+    # Build command as an array to avoid eval and ensure safe quoting.
+    local check_results="$PROJECT_ROOT/tests/test_utils/runners/check_results.py"
+    if [ -f "$check_results" ]; then
+        local python_bin
+        python_bin=$(runner_python_bin) || return 1
+        local validator_cmd=(
+            "$python_bin" -m pytest "${check_results}::${compare_function}"
+            --path=tests/functional_tests
+            "--task=$task" "--model=$model"
+            "--case=$config" "--platform=$PLATFORM"
+        )
+        [ -n "$CURRENT_DEVICE" ] && validator_cmd+=("--device=$CURRENT_DEVICE")
+
+        # For serve tasks, wait for the service to be fully ready before validation
+        if [ "$task" = "serve" ]; then
+            local serve_port
+            local result_dir="$test_dir/test_results/$config"
+            local serve_pid_file
+            local serve_log_file
+            local serve_pid
+            local serve_state
+            serve_port=$(grep -oP 'port:\s*\K[0-9]+' "$config_file" | head -1)
+
+            local max_wait="${FS_SERVE_READY_TIMEOUT:-180}"
+            local interval=10
+            local elapsed=0
+            local ready=0
+
+            if [ -z "$serve_port" ]; then
+                log_info "Could not extract serve port from config, skipping health check"
+                ready=1
+            else
+                log_info "Waiting for service on port $serve_port (timeout: ${max_wait}s)..."
+                while [ $elapsed -lt $max_wait ]; do
+                    # The serve launcher creates these files asynchronously. Refresh
+                    # their paths so an early child-process failure is observable.
+                    if [ -z "$serve_pid_file" ]; then
+                        serve_pid_file=$(find "$result_dir" -type f \
+                            -path '*/pids/host_0_localhost.pid' -print -quit 2>/dev/null || true)
+                    fi
+                    if [ -z "$serve_log_file" ]; then
+                        serve_log_file=$(find "$result_dir" -type f \
+                            -path '*/host_0_localhost.output' -print -quit 2>/dev/null || true)
+                    fi
+
+                    if [ -n "$serve_pid_file" ] && [ -r "$serve_pid_file" ]; then
+                        serve_pid=$(tr -d '[:space:]' < "$serve_pid_file" 2>/dev/null || true)
+                        serve_state=$(ps -o stat= -p "$serve_pid" 2>/dev/null || true)
+                        if [ -n "$serve_pid" ] && \
+                           { [ -z "$serve_state" ] || [[ "$serve_state" = Z* ]]; }; then
+                            log_error "Serve process exited before port $serve_port became ready"
+                            if [ -n "$serve_log_file" ] && [ -r "$serve_log_file" ]; then
+                                tail -n 80 "$serve_log_file"
+                            fi
+                            flagscale serve "$model" --config "$config_file" --stop || true
+                            return 1
+                        fi
+                    fi
+
+                    local http_code
+                    http_code=$(curl --silent --max-time 5 --output /dev/null \
+                        --write-out "%{http_code}" \
+                        "http://localhost:${serve_port}/health" 2>/dev/null)
+                    if [ "$http_code" = "200" ]; then
+                        log_info "Service is ready on port $serve_port (${elapsed}s elapsed)"
+                        ready=1
+                        break
+                    fi
+                    # Fall back: any non-zero HTTP response means the server is up
+                    if [ -n "$http_code" ] && [ "$http_code" != "000" ]; then
+                        log_info "Service responded (HTTP $http_code) on port $serve_port (${elapsed}s elapsed)"
+                        ready=1
+                        break
+                    fi
+                    sleep $interval
+                    elapsed=$((elapsed + interval))
+                    log_info "Still waiting for service on port $serve_port... (${elapsed}s / ${max_wait}s)"
+                done
+            fi
+
+            if [ $ready -eq 0 ]; then
+                log_error "Service did not become ready within ${max_wait}s on port $serve_port"
+                if [ -n "$serve_log_file" ] && [ -r "$serve_log_file" ]; then
+                    tail -n 80 "$serve_log_file"
+                fi
+                local serve_log
+                for serve_log in "$exp_dir"/serve_logs/host*.output; do
+                    [ "$serve_log" = "$serve_log_file" ] && continue
+                    [ -f "$serve_log" ] || continue
+                    log_error "Serve output: $serve_log"
+                    tail -n 200 "$serve_log" || true
+                done
+                flagscale serve "$model" --config "$config_file" --stop || true
+                return 1
+            fi
+        fi
+
+        if ! "${validator_cmd[@]}"; then
+            log_error "Validation failed for $task/$model/$config"
+            if [ "$task" = "serve" ]; then
+                flagscale serve "$model" --config "$config_file" --stop || true
+            fi
+            return 1
+        fi
+
+        # Stop the serve process after validation completes
+        if [ "$task" = "serve" ]; then
+            log_info "Stopping serve: flagscale serve $model --config $config_file --stop"
+            flagscale serve "$model" --config "$config_file" --stop
+        fi
+    fi
+
+    log_success "Test completed: $task/$model/$config"
+}
+
+# Get tests from platform configuration
+# Returns JSON describing which test cases to run for the given device/task/model.
+# Uses an array instead of eval to safely handle paths with special characters.
+get_test_configs() {
+    local device="$1"
+    local task="$2"
+    local model="$3"
+    local list="$4"
+
+    local cmd=(
+        "$SCRIPT_DIR/parse_config.py"
+        --platform "$PLATFORM" --device "$device"
+        --type functional --task "$task"
+    )
+    [ -n "$model" ] && cmd+=(--model "$model")
+    [ -n "$list" ] && cmd+=(--list "$list")
+    run_config_python "$PLATFORM" "${cmd[@]}" 2>/dev/null || echo ""
+}
+
+# Parse and run tests using helper module
+run_tests_from_json() {
+    local tests_json="$1"
+    local failed=0
+
+    # Use helper module to parse test cases
+    # Use process substitution to avoid subshell and allow failure tracking
+    while IFS=' ' read -r task model config; do
+        [ -z "$task" ] && continue
+        if ! run_test "$task" "$model" "$config"; then
+            log_error "FAIL: $task/$model/$config"
+            failed=1
+        fi
+    done < <(echo "$tests_json" | run_config_python "$PLATFORM" "$SCRIPT_DIR/helpers.py" parse-test-cases)
+
+    return $failed
+}
+
+# Function to run functional tests for a specific device
+run_functional_tests_for_device() {
+    local device="$1"
+    export CURRENT_DEVICE="$device"
+    local failed=0
+
+    log_info "Running functional tests for device: $device"
+
+    # Print configuration
+    echo "=========================================="
+    echo "Running Functional Tests"
+    echo "=========================================="
+    echo "Platform:   $PLATFORM"
+    echo "Device:     $device"
+    echo "Task:       ${TASK:-all}"
+    echo "Model:      ${MODEL:-all}"
+    echo "Tests:      ${TEST_LIST:-all}"
+    echo "=========================================="
+
+    cd "$PROJECT_ROOT"
+
+    # If no task specified, run all tasks
+    if [ -z "$TASK" ]; then
+        for task_dir in tests/functional_tests/*/; do
+            task_name=$(basename "$task_dir")
+            [ -d "$task_dir" ] || continue
+
+            log_info "Processing task: $task_name"
+
+            tests_json=$(get_test_configs "$device" "$task_name" "$MODEL" "$TEST_LIST")
+            [ -z "$tests_json" ] && { log_info "No tests found for task=$task_name"; continue; }
+
+            if ! run_tests_from_json "$tests_json"; then
+                log_error "Some tests failed for task: $task_name"
+                failed=1
+            fi
+        done
+    else
+        # Task specified, run only that task
+        [ -d "tests/functional_tests/$TASK" ] || { log_error "Task directory not found: tests/functional_tests/$TASK"; return 1; }
+
+        tests_json=$(get_test_configs "$device" "$TASK" "$MODEL" "$TEST_LIST")
+        [ -z "$tests_json" ] && { log_error "No tests found for task=$TASK"; return 1; }
+
+        if ! run_tests_from_json "$tests_json"; then
+            log_error "Some tests failed for task: $TASK"
+            failed=1
+        fi
+    fi
+
+    return $failed
+}
+
+# Validate platform
+validate_platform "$PLATFORM" "$SCRIPT_DIR" || exit 1
+
+EXIT_CODE=0
+
+# If device is specified, run for that device only
+if [ -n "$DEVICE" ]; then
+    validate_device "$PLATFORM" "$DEVICE" "$SCRIPT_DIR" || exit 1
+    if ! run_functional_tests_for_device "$DEVICE"; then
+        EXIT_CODE=1
+    fi
+else
+    # No device specified, run for all devices in the platform
+    DEVICE_TYPES=$(get_device_types "$PLATFORM" "$SCRIPT_DIR")
+
+    if [ -z "$DEVICE_TYPES" ] || [ "$DEVICE_TYPES" = "[]" ]; then
+        log_error "No device types found for platform: $PLATFORM"
+        exit 1
+    fi
+
+    log_info "Running tests for all devices: $DEVICE_TYPES"
+
+    # Parse device types using helper
+    DEVICES=$(echo "$DEVICE_TYPES" | run_config_python "$PLATFORM" "$SCRIPT_DIR/helpers.py" parse-devices)
+
+    OVERALL_EXIT_CODE=0
+    for device in $DEVICES; do
+        if ! run_functional_tests_for_device "$device"; then
+            log_error "Functional tests failed for device: $device"
+            OVERALL_EXIT_CODE=1
+        fi
+        echo ""
+    done
+
+    EXIT_CODE=$OVERALL_EXIT_CODE
+fi
+
+echo "=========================================="
+if [ "$EXIT_CODE" -eq 0 ]; then
+    log_success "All tests completed"
+else
+    log_error "Some tests failed"
+fi
+echo "=========================================="
+
+exit "$EXIT_CODE"

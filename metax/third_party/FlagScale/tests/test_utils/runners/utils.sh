@@ -1,0 +1,318 @@
+#!/bin/bash
+
+# Copyright 2026 FlagOS Contributors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Shared Utility Functions for FlagScale Test Runners
+
+# Logging
+log_info() {
+    echo "[INFO] $(date +'%Y-%m-%d %H:%M:%S') - $*" >&2
+}
+
+log_error() {
+    echo -e "\033[0;31m[ERROR] $(date +'%Y-%m-%d %H:%M:%S') - $*\033[0m" >&2
+}
+
+log_success() {
+    echo -e "\033[0;32m[SUCCESS] $(date +'%Y-%m-%d %H:%M:%S') - $*\033[0m" >&2
+}
+
+runner_python_bin() {
+    local python_bin="${CI_PYTHON_BIN:-}"
+    if [ -z "$python_bin" ]; then
+        python_bin=$(command -v python || command -v python3 || true)
+    fi
+    if [ -z "$python_bin" ] || [ ! -x "$python_bin" ]; then
+        log_error "Python executable not found"
+        return 1
+    fi
+    printf '%s\n' "$python_bin"
+}
+
+# Run configuration-only Python helpers without processing site .pth files on
+# Enflame. The vendor image auto-loads torch_gcu from a .pth hook, which can
+# initialize the accelerator (and abort) even for pure YAML/JSON parsing.
+run_config_python() {
+    local platform="$1"
+    shift
+    local python_bin
+    python_bin=$(runner_python_bin) || return 1
+
+    if [ "$platform" = "enflame" ]; then
+        local script="$1"
+        shift
+        "$python_bin" -S -E -c '
+import runpy
+import sys
+import sysconfig
+
+sys.path.insert(0, sysconfig.get_path("purelib"))
+script = sys.argv[1]
+sys.argv = sys.argv[1:]
+runpy.run_path(script, run_name="__main__")
+' "$script" "$@"
+    else
+        "$python_bin" "$@"
+    fi
+}
+
+# Validation
+validate_platform() {
+    local platform="$1"
+    local script_dir="$2"
+    local config_file="${script_dir}/../config/platforms/${platform}.yaml"
+
+    # Reject template as a platform
+    if [ "$platform" = "template" ]; then
+        log_error "Cannot use 'template' as a platform"
+        log_error "template.yaml is a template file for creating new platform configurations"
+        log_error "Available platforms:"
+        ls -1 "${script_dir}/../config/platforms/" 2>/dev/null | grep -v '^template\.yaml$' | sed 's/.yaml$//' | sed 's/^/  - /' >&2
+        return 1
+    fi
+
+    if [ ! -f "$config_file" ]; then
+        log_error "Platform configuration not found: $config_file"
+        log_info "Available platforms:"
+        ls -1 "${script_dir}/../config/platforms/" 2>/dev/null | grep -v '^template\.yaml$' | sed 's/.yaml$//' | sed 's/^/  - /' >&2
+        log_info ""
+        log_info "To create a new platform configuration:"
+        log_info "  1. Copy tests/test_utils/config/platforms/template.yaml to ${platform}.yaml"
+        log_info "  2. Customize the configuration for your platform"
+        return 1
+    fi
+    return 0
+}
+
+validate_device() {
+    local platform="$1"
+    local device="$2"
+    local script_dir="$3"
+
+    local available_devices
+    available_devices=$(run_config_python "$platform" "${script_dir}/parse_config.py" --platform "$platform" --type device_types 2>/dev/null)
+
+    if [ $? -ne 0 ] || [ -z "$available_devices" ]; then
+        log_error "Failed to query device types for platform '$platform'"
+        return 1
+    fi
+
+    if ! echo "$available_devices" | grep -q "\"$device\""; then
+        log_error "Device '$device' not found in platform '$platform'"
+        log_info "Available devices: $available_devices"
+        return 1
+    fi
+
+    return 0
+}
+
+get_device_types() {
+    local platform="$1"
+    local script_dir="$2"
+
+    run_config_python "$platform" "${script_dir}/parse_config.py" --platform "$platform" --type device_types 2>/dev/null
+}
+
+# GPU Management
+
+# Fetch mem_used[] and mem_total[] arrays for nvidia
+_gpu_fetch_nvidia() {
+    mapfile -t mem_used  < <(nvidia-smi --query-gpu=memory.used  --format=csv,noheader,nounits 2>/dev/null)
+    mapfile -t mem_total < <(nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits 2>/dev/null)
+}
+
+# Hygon's NVIDIA compatibility CLI does not implement memory query fields.
+# Query the DTK-backed Torch runtime directly instead.
+_gpu_fetch_hygon() {
+    local mem_output
+    local python_bin
+    python_bin=$(runner_python_bin) || return 1
+    mem_output=$("$python_bin" - <<'PY'
+import torch
+
+for index in range(torch.cuda.device_count()):
+    free, total = torch.cuda.mem_get_info(index)
+    print(total - free, total)
+PY
+    ) || return 1
+    mapfile -t mem_used < <(echo "$mem_output" | awk '{print $1}')
+    mapfile -t mem_total < <(echo "$mem_output" | awk '{print $2}')
+}
+
+# Fetch mem_used[] and mem_total[] arrays for metax
+_gpu_fetch_metax() {
+    local mem_output
+    mem_output=$(mx-smi --show-memory 2>/dev/null)
+    mapfile -t mem_used  < <(echo "$mem_output" | awk '$1=="vram" && $2=="used"  {print $(NF-1)}')
+    mapfile -t mem_total < <(echo "$mem_output" | awk '$1=="vram" && $2=="total" {print $(NF-1)}')
+}
+
+# Fetch mem_used[] and mem_total[] arrays for ascend
+_gpu_fetch_ascend() {
+    local info pci_awk
+    info=$(npu-smi info 2>/dev/null)
+    # Match Chip rows by PCI bus ID; find last "X / Y" pattern (HBM column)
+    pci_awk='/[0-9a-fA-F]+:[0-9a-fA-F]+:[0-9a-fA-F]+\.[0-9]/ {
+        s=$0
+        while (match(s, /[0-9]+ *\/ *[0-9]+/)) { last=substr(s,RSTART,RLENGTH); s=substr(s,RSTART+RLENGTH) }
+        split(last, a, / *\/ */)
+        print a[idx]+0
+    }'
+    mapfile -t mem_used  < <(echo "$info" | awk -v idx=1 "$pci_awk")
+    mapfile -t mem_total < <(echo "$info" | awk -v idx=2 "$pci_awk")
+}
+
+# Fetch mem_used[] and mem_total[] arrays for MThreads MUSA.
+_gpu_fetch_musa() {
+    local mem_output
+    mem_output=$(mthreads-gmi 2>/dev/null | grep -oE '[0-9]+MiB\([0-9]+MiB\)' || true)
+    mapfile -t mem_used < <(echo "$mem_output" | sed -E 's/^([0-9]+)MiB.*/\1/')
+    mapfile -t mem_total < <(echo "$mem_output" | sed -E 's/^[0-9]+MiB\(([0-9]+)MiB\)/\1/')
+}
+
+# Common polling loop; args: <gpu_count> <fetch_fn>
+_gpu_poll_loop() {
+    local gpu_count=$1 fetch_fn=$2
+
+    while true; do
+        mem_used=()
+        mem_total=()
+        if ! "$fetch_fn"; then
+            log_error "Unable to query accelerator memory"
+            return 1
+        fi
+        local need_wait=false max_pct=0
+        for ((i=0; i<gpu_count; i++)); do
+            if ! [[ "${mem_used[i]:-}" =~ ^[0-9]+$ ]] || \
+                ! [[ "${mem_total[i]:-}" =~ ^[0-9]+$ ]]; then
+                log_error "Unable to query numeric memory values for accelerator $i"
+                return 1
+            fi
+            [ "${mem_total[i]}" -eq 0 ] && continue
+            local pct=$(( mem_used[i] * 100 / mem_total[i] ))
+            [ $pct -gt $max_pct ] && max_pct=$pct
+            [ $pct -gt 50 ] && { need_wait=true; break; }
+        done
+        [ "$need_wait" = false ] && break
+        echo "Waiting for GPU memory (current: ${max_pct}%)..."
+        sleep 60
+    done
+    echo "GPU ready (${max_pct}% usage)"
+}
+
+wait_for_gpu() {
+    local gpu_count fetch_fn
+    if [ "${PLATFORM:-}" = hygon ]; then
+        local python_bin
+        python_bin=$(runner_python_bin) || return 1
+        gpu_count=$("$python_bin" -c 'import torch; print(torch.cuda.device_count())') || return 1
+        fetch_fn=_gpu_fetch_hygon
+    elif command -v nvidia-smi &>/dev/null; then
+        gpu_count=$(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | wc -l)
+        fetch_fn=_gpu_fetch_nvidia
+    elif command -v mx-smi &>/dev/null; then
+        gpu_count=$(mx-smi --show-hwinfo 2>/dev/null | awk '/Attached GPUs/{print $NF}')
+        fetch_fn=_gpu_fetch_metax
+    elif command -v npu-smi &>/dev/null; then
+        gpu_count=$(npu-smi info -l 2>/dev/null | awk '/Total Count/{print $NF}')
+        fetch_fn=_gpu_fetch_ascend
+    elif command -v mthreads-gmi &>/dev/null; then
+        gpu_count=$(mthreads-gmi 2>/dev/null | grep -c 'MTT S5000' || true)
+        fetch_fn=_gpu_fetch_musa
+    else
+        return 0
+    fi
+    if ! [[ "$gpu_count" =~ ^[0-9]+$ ]]; then
+        log_error "Unable to determine accelerator count"
+        return 1
+    fi
+    [ "$gpu_count" -eq 0 ] && return 0
+    _gpu_poll_loop "$gpu_count" "$fetch_fn"
+}
+
+default_dist_backend() {
+    local platform="${1:-}"
+    case "$platform" in
+        ascend) echo "hccl" ;;
+        metax) echo "${FLAGSCALE_TEST_METAX_BACKEND:-nccl}" ;;
+        musa) echo "mccl" ;;
+        *) echo "nccl" ;;
+    esac
+}
+
+default_torch_device_type() {
+    local platform="${1:-}"
+    case "$platform" in
+        ascend) echo "npu" ;;
+        musa) echo "musa" ;;
+        *) echo "cuda" ;;
+    esac
+}
+
+detect_accelerator_count() {
+    local platform="${1:-}"
+    local python_bin
+    python_bin=$(runner_python_bin) || return 1
+
+    case "$platform" in
+        ascend)
+            {
+                "$python_bin" - <<'PY' 2>/dev/null || true
+import torch
+try:
+    import torch_npu  # noqa: F401
+except Exception:
+    pass
+device_count = getattr(getattr(torch, "npu", None), "device_count", None)
+print(device_count() if callable(device_count) else 1)
+PY
+            } | awk '/^[0-9]+$/ { value=$1 } END { print value ? value : 1 }'
+            ;;
+        metax)
+            {
+                "$python_bin" - <<'PY' 2>/dev/null || mx-smi --show-hwinfo 2>/dev/null | awk '/Attached GPUs/{print $NF}' || true
+import torch
+if hasattr(torch, "maca") and hasattr(torch.maca, "device_count"):
+    print(torch.maca.device_count())
+elif hasattr(torch, "cuda") and hasattr(torch.cuda, "device_count"):
+    print(torch.cuda.device_count())
+else:
+    print(1)
+PY
+            } | awk '/^[0-9]+$/ { value=$1 } END { print value ? value : 1 }'
+            ;;
+        musa)
+            {
+                "$python_bin" - <<'PY' 2>/dev/null || true
+import torch
+try:
+    import torch_musa  # noqa: F401
+except Exception:
+    pass
+device_count = getattr(getattr(torch, "musa", None), "device_count", None)
+print(device_count() if callable(device_count) else 1)
+PY
+            } | awk '/^[0-9]+$/ { value=$1 } END { print value ? value : 1 }'
+            ;;
+        *)
+            {
+                "$python_bin" - <<'PY' 2>/dev/null || true
+import torch
+print(torch.cuda.device_count() if hasattr(torch, "cuda") else 1)
+PY
+            } | awk '/^[0-9]+$/ { value=$1 } END { print value ? value : 1 }'
+            ;;
+    esac
+}

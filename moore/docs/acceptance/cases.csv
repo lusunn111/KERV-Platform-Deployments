@@ -1,0 +1,10 @@
+run_id,kind,profile,model_id,platform_id,chip_id,physical_device_id,task_id,init_state_id,seed,repeat_id,max_steps,planning_steps,timeout_seconds,action_protocol
+smoke_optimized_s7,smoke,optimized,M1,P1,H1,0,0,0,7,0,8,220,1800,openvla_libero_goal_7d_binary_inverted_gripper
+full_native_s7,full,native,M1,P1,H1,0,0,0,7,0,220,220,1800,openvla_libero_goal_7d_binary_inverted_gripper
+full_optimized_s7,full,optimized,M1,P1,H1,0,0,0,7,0,220,220,1800,openvla_libero_goal_7d_binary_inverted_gripper
+full_optimized_s17,full,optimized,M1,P1,H1,0,0,0,17,0,220,220,1800,openvla_libero_goal_7d_binary_inverted_gripper
+full_native_s17,full,native,M1,P1,H1,0,0,0,17,0,220,220,1800,openvla_libero_goal_7d_binary_inverted_gripper
+full_native_s27,full,native,M1,P1,H1,0,0,0,27,0,220,220,1800,openvla_libero_goal_7d_binary_inverted_gripper
+full_optimized_s27,full,optimized,M1,P1,H1,0,0,0,27,0,220,220,1800,openvla_libero_goal_7d_binary_inverted_gripper
+diagnostic_native_s7,diagnostic,native,M1,P1,H1,0,0,0,7,0,8,220,1800,openvla_libero_goal_7d_binary_inverted_gripper
+diagnostic_optimized_s7,diagnostic,optimized,M1,P1,H1,0,0,0,7,0,8,220,1800,openvla_libero_goal_7d_binary_inverted_gripper

@@ -1,0 +1,59 @@
+# CMake and native build artifacts
+build/
+build-*/
+cmake-build-*/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+CTestTestfile.cmake
+Testing/
+compile_commands.json
+install_manifest.txt
+*.ninja
+.ninja_*
+Makefile
+
+# Native binaries and libraries
+*.a
+*.so
+*.so.*
+*.dylib
+*.dll
+*.exe
+*.o
+*.obj
+
+# Python used by Triton/codegen
+__pycache__/
+*.py[cod]
+.mypy_cache/
+.venv/
+venv/
+
+# Compiler, autotune and benchmark outputs
+.flagdnn/
+.triton/
+results/
+*.jsonl
+coverage/
+.coverage
+htmlcov/
+
+# Editors and local workspaces
+.vscode/
+.idea/
+.settings/
+.worktrees/
+
+# Crash dumps and rejected/backup patch artifacts
+*.mudmp
+*.orig
+*.rej
+
+# Packaging build outputs
+packaging/debian/local-deps/*
+!packaging/debian/local-deps/.gitkeep
+packaging/rpm/local-deps/*
+!packaging/rpm/local-deps/.gitkeep
+debian-packages/
+rpm-packages/

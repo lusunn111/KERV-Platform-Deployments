@@ -1,0 +1,55 @@
+defaults:
+  - kerv_libero_goal_npu
+  - _self_
+
+experiment:
+  exp_name: kerv_libero_goal_npu_runtime
+
+inference:
+  runtime:
+    run_id_note: kerv-npu-moore-runtime
+    embodied_ops:
+      backend: native
+    flag_gems:
+      # Global RMSNorm replacement changes native MUSA
+      # numerics and failed the full-episode success gate. Add-RMSNorm
+      # remains available through the scoped KERV linear-fusion adapter.
+      enabled: false
+      rms_norm_backend: adaptive
+      record: true
+    linear_fusion:
+      enabled: false
+      record: true
+      qkv_layers: "all"
+      qkv_backend: concat
+      qkv_rows: "4,8,192,224,232,240,248,256,264,279,280,292,320"
+      gate_up_rows: "4,8,232,240,248,256"
+      swiglu_rows: "4,8,192,224,232,240,248,256,264,279,280,292,320"
+      swiglu_backend: native_inplace
+      add_rms_norm_rows: "8,192,224,232,240,248,256,264,280,320"
+      add_rms_norm_backend: adaptive
+    rope_fusion:
+      enabled: false
+      record: true
+    tree_builder:
+      enabled: true
+      static_runtime: true
+      # Keep all candidate paths, including KERV's Kalman branch.
+      verify_max_paths: 0
+      operatorized: true
+      draft_tree_operatorized: true
+      fused_control_transfer: false
+      resident_kv_cache: false
+      kalman_batch: true
+      kv_commit_batched: true
+    system_optimization:
+      enabled: true
+      fixed_draft_input_workspace: false
+      persistent_control_buffer: true
+      persistent_decode_workspace: true
+      prompt_token_cache: true
+      persistent_draft_kv_cache: true
+      # Match the validated eager profile; retain static trees and reusable
+      # buffers. Graph capture is a separate experiment on Ascend.
+      prompt_cuda_graph: "off"
+      draft_cuda_graph: "off"
